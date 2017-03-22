@@ -1,0 +1,14 @@
+include $(CUR_DIR)../Makefile.param
+
+#CROSS_DIR = /opt/hisi-linux-nptl/arm-hisiv100-linux/target/
+LIB_TMP_DIR = /tmp/lyndon/lib/
+
+ifeq ($(CROSS), )
+
+INSTALL_DIR = $(CUR_DIR)../lib_x86/
+
+else
+INSTALL_DIR = $(CUR_DIR)../lib_target/
+
+endif
+

@@ -1,0 +1,20 @@
+upgrade编译: 
+进入upgrade文件夹后输入make编译x86_32位程序, 使用命令make CROSS=mipsel-linux- 编译mipsel程序.
+
+库:
+编译完成后生成libupgrade.so库, 这个库依赖于libpthread.so libcrypto.so libssl.so libjson-c.so
+
+可执行程序:
+编译完成后生成upgrade和test_upgrade可执行程序, 这两个可执行程序需要libupgrade.so的支持
+
+调用编译生成的库函数:
+倘若希望调用libupgrade.so中的一些函数, 则在编译的时候应该包含头文件upgrade.h, 连接的时候则需要libupgrade.so的支持
+
+工作路径:
+在调用库函数之前, 最好是在进程启动之前建立工作目录, 主机上的目录是/tmp/workdir/log, 板端上在调试模式下是/tmp/workdir/log
+和/media/sdcard/log, 板端上在在非调试模式下是/var/workdir/log和/media/sdcard/log
+
+
+
+版本V20150212-001
+更改内联函数的定义问题；更正UDP保活发送数据错误时的处理方法，增加控制云服务器通讯线程控制LED的功能；更正日志时间显示问题；更正进程更新时的数据操作问题；更正统计模块的统计问题

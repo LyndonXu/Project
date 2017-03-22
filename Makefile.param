@@ -1,0 +1,11 @@
+#sdk parameters
+export SDK_PATH:=/home/lyndon/workspace/sdk/Hi3531_SDK_V1.0.9.0/
+
+export MACH_TYPE := NVR3531_001
+
+export HOST_TYPE := arm-hisiv300-linux
+
+#tool chain
+export CROSS = $(HOST_TYPE)-
+export CC = $(CROSS)gcc
+export CXX = $(CROSS)g++
