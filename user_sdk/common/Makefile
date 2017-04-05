@@ -31,7 +31,11 @@ INC_FLAGS += -I $(JSON_DIR)include
 
 PROJECT = common
 
+ifeq ($(CROSS), )
 INSTALL_DIR = ../../lib_x86/
+else
+INSTALL_DIR = ../../lib_target/
+endif
 
 #compile parameters
 ifeq ($(DEBUG), 1)
@@ -72,13 +76,13 @@ LIBDIR += -L $(JSON_DIR)lib
 
 LIBS = $(LIBDIR) -l$(PROJECT)
 LIBS += -lpthread
-LIBS += -ljson-c
+#LIBS += -ljson-c
 
 
 LIBS_NEW = $(LIBDIR)
 LIBS_NEW += -l$(PROJECT)
 LIBS_NEW += -lpthread
-LIBS_NEW += -ljson-c
+#LIBS_NEW += -ljson-c
 
 
 ifeq ($(FILETYPE), cpp) 

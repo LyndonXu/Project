@@ -21,6 +21,15 @@ extern "C" {
 #endif
 
 
+#if HAS_CROSS
+#if defined _DEBUG
+#define WORK_DIR							"/tmp/workdir/"
+#else
+#define WORK_DIR							"/var/workdir/"
+#endif
+#else
+#define WORK_DIR							"/tmp/workdir/"
+#endif
 /*
  * 函数名      : MakeASpecialKey
  * 功能        : 创建一个IPC key
@@ -85,7 +94,24 @@ int32_t GetTheShmId(const char * pName, uint32_t u32Size);
  */
 void ReleaseAShmId(int32_t s32Id);
 
+/*
+ * 函数名      : GetTheMsgId
+ * 功能        : 得到一个MSG IPCID
+ * 参数        : pName [in] (char * 类型): 名字
+ *             : u32Size [in] (JA_UI32类型): 共享内存的大小
+ * 返回值      : 正确返回非负ID号, 否则返回错误码
+ * 作者        : 许龙杰
+ */
+int32_t GetTheMsgId(const char * pName);
 
+/*
+ * 函数名      : ReleaseAMsgId
+ * 功能        : 从系统中释放一个MSG ID 所有进程只需要一个进程释放
+ * 参数        : s32Id [in] (JA_SI32类型): ID号
+ * 返回值      : 无
+ * 作者        : 许龙杰
+ */
+void ReleaseAMsgId(int32_t s32Id);
 
 /*
  * 比较pLeft和pRight(通过上下文指针pData传递)数据，操作附加数据(pAdditionData)
@@ -269,6 +295,42 @@ void SLOTombDestroy(int32_t s32Handle);
 
 
 
+enum
+{
+	_MCS_Cmd_UartDaemon = 0x00007000,
+
+	_MCS_Cmd_Echo = 0x08000000,
+};
+
+/*
+ * 函数名      : LittleAndBigEndianTransfer
+ * 功能        : 大端数据和小端数据之间的转换
+ * 参数        : pDest[out] (char * 类型): 要转换的结果存放的位置
+ *             : pSrc[in] (const char * 类型): 要转换的数据指针
+ *             : u32Size[in] (uint32_t类型): pSrc 指向数据的字节数
+ * 返回值      : 无
+ * 作者        : 许龙杰
+ * 例程:
+ *  {
+ *      uint32_t u32Tmp = 0x12345678, i;
+ *      uint8_t u8Arr[4] = {0}, *pTmp;
+ *      pTmp = (char *)&u32Tmp;
+ *      for ( i = 0; i < 4; i++)
+ *      {
+ *          u8Arr[i] = pTmp[i];
+ *      }
+ *      printf("the little-endian data is 0x%08x, and its byte sequence is 0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx\n",
+ *              u32Tmp, u8Arr[0], u8Arr[1], u8Arr[2], u8Arr[3]);
+ *      LittleAndBigEndianTransfer(u8Arr, (char *)&u32Tmp, sizeof(uint32_t));
+ *      printf("After transfer,  big-endian data's byte sequence is  0x%02hhx 0x%02hhx 0x%02hhx 0x%02hhx\n",
+ *              u8Arr[0], u8Arr[1], u8Arr[2], u8Arr[3]);
+ *
+ *      printf("We want to transfer the big-endian data into little-endian\n");
+ *      LittleAndBigEndianTransfer((char *)&u32Tmp1, u8Arr, sizeof(uint32_t));
+ *      printf("After transfer, little-endian data is 0x%08x\n", u32Tmp1);
+ *  }
+ */
+void LittleAndBigEndianTransfer(char *pDest, const char *pSrc, uint32_t u32Size);
 
 /*
  * 函数指针
@@ -1039,6 +1101,128 @@ int32_t TimeTaskAddATask(int32_t s32Handle, pFUN_TimeTask pFunTask,
  * 作者        : 许龙杰
  */
 void TimeTaskDestory(int32_t s32Handle);
+
+
+/*
+ * 函数名		: UARTInit
+ * 功能			: 串口初始化
+ * 参数			: s32FDUart [in]: (int32_t * 类型) 打开的串口文件描述符
+ * 				  s32Bandrate [in]: (int32_t * 类型) 波特率，参考文件<termios.h>，B0～B4000000
+ * 				  s32Parity[in]: (int32_t * 类型) 奇偶校验，0无校验，1奇校验，2偶校验
+ * 				  s32DataBits[in]: (int32_t * 类型) 数据长度，[5, 8]
+ * 				  s32StopBits: (int32_t * 类型) 停止位，[1, 2]
+ * 				  u8ReadCnt: (uint8_t * 类型) 参考文件<termios.h>
+ * 				  u8ReadTime: (uint8_t * 类型) 参考帮助文档c_cc[VMIN]和c_cc[VTIME]
+ * 返回值      : (int32_t类型) 0表示成功, 否则表示错误
+ * 作者        : 许龙杰
+ */
+int32_t UARTInit(int32_t s32FDUart, int32_t s32Bandrate, int32_t s32Parity,
+		int32_t s32DataBits, int32_t s32StopBits, uint8_t u8ReadCnt, uint8_t u8ReadTime);
+
+
+
+enum
+{
+	_Protocol_YNA,
+	_Protocol_PELCO_D,
+	_Protocol_PELCO_P,
+	_Protocol_VISCA,
+
+	_Protocol_Reserved,
+};
+
+#define PROTOCOL_YNA_ENCODE_LENGTH			10
+#define PROTOCOL_YNA_DECODE_LENGTH			8
+#define PROTOCOL_PELCO_D_LENGTH				7
+#define PROTOCOL_PELCO_P_LENGTH				8
+#define PROTOCOL_VISCA_MIN_LENGTH			3
+#define PROTOCOL_VISCA_MAX_LENGTH			16
+
+enum
+{
+	_YNA_Sync,
+	_YNA_Addr,
+	_YNA_Mix,
+	_YNA_Cmd,
+	_YNA_Data1,
+	_YNA_Data2,
+	_YNA_Data3,
+	_YNA_CheckSum,
+};
+
+
+typedef struct _tagStCycleBuf
+{
+	char *pBuf;						/* 指向的数据指针 */
+	uint32_t u32TotalLength;		/* 数据的总长度 */
+	uint32_t u32Write;				/* 当前写到的位置 */
+	uint32_t u32Read;				/* 当前读到的位置 */
+	uint32_t u32Using;				/* 当前BUF使用量 */
+	uint32_t u32Flag;				/* 一些标志 */
+}StCycleBuf;
+
+
+/*
+ * 函数名		: CycleMsgInit
+ * 功能			: 协议解析初始化
+ * 参数			: StCycleBuf [in/out]: (StCycleBuf * 类型) 协议解析使用的句柄
+ * 				  pBuf [in]: (void * 类型) 协议解析的缓存位置
+ * 				  u32Length[in]: (uint32_t 类型) 缓存大小
+ * 返回值      : (int32_t类型) 0表示成功, 否则表示错误
+ * 作者        : 许龙杰
+ */
+int32_t CycleMsgInit(StCycleBuf *pCycleBuf, void *pBuf, uint32_t u32Length);
+
+/*
+ * 函数名		: CycleGetOneMsg
+ * 功能			: 协议解析
+ * 参数			: StCycleBuf [in/out]: (StCycleBuf * 类型) 协议解析使用的句柄
+ * 				  pData [in]: (const char * 类型) 待解析数据
+ * 				  u32DataLength [in]: (uint32_t 类型) 待解析数据长度
+ * 				  pProtocolType [out]: (int32_t * 类型) 协议名称(_Protocol_*)
+ * 				  pErr [out]: (int32_t * 类型) 错误信息
+ * 返回值		: (void * 类型) 非NULL表示成功，指向数据, 否则表示错误
+ * 作者			: 许龙杰
+ */
+void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
+	uint32_t u32DataLength, uint32_t *pLength, int32_t *pProtocolType, int32_t *pErr);
+
+
+/*
+ * 函数名		: YNAMakeAnArrayVarialbleCmd
+ * 功能			: 组建一个YNA可变长协议
+ * 参数			: u16Cmd [in]: (uint16_t 类型) 命令号
+ * 				  pData [in]: (void * 类型) 数据
+ * 				  u32Count [in]: (uint32_t 类型) 数据数量
+ * 				  u32Length [in]: (uint32_t 类型) 单个数组的长度
+ * 				  pCmdLength [out]: (uint32_t * 类型) 组建成功的长度
+ * 返回值		: (void * 类型) 非NULL表示成功，指向数据, 否则表示错误
+ * 作者			: 许龙杰
+ */
+void *YNAMakeAnArrayVarialbleCmd(uint16_t u16Cmd, void *pData,
+	uint32_t u32Count, uint32_t u32Length, uint32_t *pCmdLength);
+
+/*
+ * 函数名		: YNAMakeASimpleVarialbleCmd
+ * 功能			: 组建一个简单的YNA可变长协议
+ * 参数			: u16Cmd [in]: (uint16_t 类型) 命令号
+ * 				  pData [in]: (void * 类型) 数据
+ * 				  u32DataLength [in]: (uint32_t 类型) 数据长度
+ * 				  pCmdLength [out]: (uint32_t * 类型) 组建成功的长度
+ * 返回值		: (void * 类型) 非NULL表示成功，指向数据, 否则表示错误
+ * 作者			: 许龙杰
+ */
+void *YNAMakeASimpleVarialbleCmd(uint16_t u16Cmd, void *pData,
+	uint32_t u32DataLength, uint32_t *pCmdLength);
+
+/*
+ * 函数名		: YNAGetCheckSum
+ * 功能			: 得到一个定长YNA协议校验和
+ * 参数			: pBuf [in]: (uint8_t * 类型) 长度为PROTOCOL_YNA_DECODE_LENGTH的数据
+ * 返回值		: 无
+ * 作者			: 许龙杰
+ */
+void YNAGetCheckSum(uint8_t *pBuf);
 
 #ifdef __cplusplus
 }

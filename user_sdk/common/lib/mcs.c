@@ -41,7 +41,7 @@ const uint8_t c_u8MixArr[4] = {0x4D, 0x43, 0x53, 0x01};
  *      printf("After transfer, little-endian data is 0x%08x\n", u32Tmp1);
  *  }
  */
-static void LittleAndBigEndianTransfer(char *pDest, const char *pSrc, uint32_t u32Size)
+void LittleAndBigEndianTransfer(char *pDest, const char *pSrc, uint32_t u32Size)
 {
     uint32_t i;
     for (i  = 0; i < u32Size; i++)
@@ -753,6 +753,26 @@ void *MCSSyncReceive(int32_t s32Socket, bool boWantSyncHead, uint32_t u32TimeOut
     FD_SET(s32Socket, &stSet);
 
     if (select(s32Socket + 1, &stSet, NULL, NULL, &stTimeout) <= 0)
+    {
+        if (pErr != NULL)
+        {
+            *pErr = MY_ERR(_Err_TimeOut);
+        }
+        *pSize = 0;
+        return NULL;
+    }
+    /* 设置套接字选项,接收和发送超时时间 */
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+        if (pErr != NULL)
+        {
+            *pErr = MY_ERR(_Err_TimeOut);
+        }
+        *pSize = 0;
+        return NULL;
+    }
+
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
     {
         if (pErr != NULL)
         {
