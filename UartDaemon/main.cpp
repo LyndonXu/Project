@@ -4,42 +4,7 @@
  *  Created on: 2017年4月3日
  *      Author: lyndon
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stddef.h>
-#include <errno.h>
-#include <signal.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-
-#include <termios.h>
-
-#include "common.h"
-
-#if ((defined _DEBUG) && (!(defined NOT_USING_PRINT)))
-#define PRINT(x, ...) printf("[%s:%d]: " x, __FILE__, __LINE__, ##__VA_ARGS__)
-#else
-#define PRINT(x, ...)
-#endif
-
-#define MSG_KEY_NAME			"uart_daemon.msg"
-#define UNIX_SOCKET_NAME		WORK_DIR "uart_daemon_server.socket"
-
-enum
-{
-	_MSG_UART_In = 1,
-	_MSG_UART_Out,
-};
-
-enum
-{
-	_Unix_Cmd_Uart_Send_Data = _MCS_Cmd_UartDaemon,
-};
-
+#include "uart_daemon.h"
 bool g_boIsExit = false;
 
 
@@ -53,14 +18,6 @@ void SignalRegister(void)
 	signal(SIGINT, ProcessStop);
 	signal(SIGTERM, ProcessStop);
 }
-
-typedef struct _tagStMsgStruct
-{
-	uint32_t u32Type;
-	uint32_t u32WParma;
-	uint32_t u32LParma;
-	void *pMsg;
-}StMsgStruct;
 
 void *ThreadRead(void *pArg)
 {
@@ -260,7 +217,7 @@ int32_t Test()
 	return 0;
 }
 
-void *pThreadUnixMsg(void *pArg)
+void *ThreadUnixMsg(void *pArg)
 {
 	int32_t s32MsgId = ((StThreadArg *)pArg)->s32MsgId;
 
@@ -278,6 +235,7 @@ void *pThreadUnixMsg(void *pArg)
 		struct timeval stTimeout;
 
 		int32_t s32Client = -1;
+		bool boNeedRelease = true;
 		stTimeout.tv_sec = 2;
 		stTimeout.tv_usec = 0;
 		FD_ZERO(&stSet);
@@ -360,7 +318,10 @@ void *pThreadUnixMsg(void *pArg)
 			{
 				PRINT("MCSSyncReceive error 0x%08x\n", s32Err);
 			}
-			close(s32Client);
+			if (boNeedRelease)
+			{
+				close(s32Client);
+			}
 		}
 	}
 
@@ -370,6 +331,66 @@ void *pThreadUnixMsg(void *pArg)
 
 }
 
+
+void *ThreadEchoCntlFlush(void *pArg)
+{
+	CEchoCntl *pCntl = (CEchoCntl *)pArg;
+	uint8_t u8Msg[8];
+	int32_t i = 0;
+	while (!g_boIsExit)
+	{
+		pCntl->Flush(((i++) * 2), u8Msg, 8);
+		usleep(10 * 1000);
+	}
+	return NULL;
+}
+
+void EchoCntlTest(void)
+{
+	pthread_t s32TreadTest = -1;
+	uint8_t u8Msg[8];
+	CEchoCntl csCntl;
+	csCntl.Init(-1);
+
+	SignalRegister();
+
+	MakeThread(ThreadEchoCntlFlush, &csCntl, false, &s32TreadTest, false);
+
+	int32_t i = 0;
+	for (;i < 10; i++)
+	{
+		CEchoInfo *pInfo = new CEchoInfo;
+		if (pInfo != NULL)
+		{
+			pInfo->Init(u8Msg, 8, -1, i);
+			csCntl.InsertAElement(pInfo);
+		}
+	}
+
+	while (!g_boIsExit)
+	{
+		CEchoInfo *pInfo = new CEchoInfo;
+		if (pInfo != NULL)
+		{
+			pInfo->Init(u8Msg, 8, -1, i++);
+			csCntl.InsertAElement(pInfo);
+		}
+		usleep(1000 * 1000);
+	}
+
+
+	pthread_join(s32TreadTest, NULL);
+
+	return;
+}
+
+#if 1
+int main(int argc, const char *argv[])
+{
+	EchoCntlTest();
+	return 0;
+}
+#else
 int main(int argc, const char *argv[])
 {
 	int32_t s32Err = 0;
@@ -422,4 +443,4 @@ int main(int argc, const char *argv[])
 	close(s32FDUart);
 	return 0;
 }
-
+#endif
