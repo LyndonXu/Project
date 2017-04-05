@@ -78,11 +78,52 @@ void SignalRegister(void)
 //#define CLOUD_MODULE_TEST
 //#define PROCESS_STATISTICS_MODULE_TEST
 //#define ADD_LINE_NUMBER
-#define GETADDRINFO_TEST
+//#define GETADDRINFO_TEST
 //#define MINE_TEST
+#define UART_TEST
 
+#if defined UART_TEST
 
-#if defined GETADDRINFO_TEST
+#include <termios.h>
+
+int main()
+{
+	int32_t s32Err = 0;
+	int32_t s32FDUart = open("/dev/ttyUSB0", O_RDWR);
+	if (s32FDUart < 0)
+	{
+		PRINT("error is: %s\n", strerror(errno));
+		return 0;
+	}
+
+	if ((s32Err = UARTInit(s32FDUart, B115200, 0, 8, 1, 0, 10)) < 0)
+	{
+		PRINT("UARTInit error: 0x%08x\n", s32Err);
+	}
+	else
+	{
+		uint8_t u8Buf[64] = { 0xAA, 0x00, 0x0C, 0x80, 0x00, 0x00, 0x02, 0x24};
+		int32_t s32ReadCnt;
+		write(s32FDUart, u8Buf, 8);
+		tcflush(s32FDUart, TCIOFLUSH);
+		sleep(1);
+		s32ReadCnt = read(s32FDUart, u8Buf, 64);
+		if (s32ReadCnt > 0)
+		{
+			int32_t i;
+			for (i = 0; i < s32ReadCnt; i++)
+			{
+				printf("0x%02x ", u8Buf[i]);
+			}
+			PRINT("\nget data: %d\n", s32ReadCnt);
+		}
+
+	}
+	close(s32FDUart);
+	return 0;
+}
+
+#elif defined GETADDRINFO_TEST
 #include <net/if.h>
 #include <arpa/inet.h>
 #include <netdb.h>

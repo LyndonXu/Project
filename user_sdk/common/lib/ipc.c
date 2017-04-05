@@ -8,7 +8,7 @@
  * 描述                 :
  ****************************************************************************/
 
-#define NOT_USING_PRINT
+//#define NOT_USING_PRINT
 
 #include "common.h"
 #include "common_define.h"
@@ -27,6 +27,7 @@ key_t MakeASpecialKey(const char *pName)
 	int32_t s32Fd = 0;
 	char c8Str[128];
 
+	system("mkdir -p " WORK_DIR);
 	strcpy(c8Str, WORK_DIR);
 	if (NULL == pName)
 	{
@@ -216,5 +217,62 @@ void ReleaseAShmId(int32_t s32Id)
 		return;
 	}
 	shmctl(s32Id, IPC_RMID, NULL);
+}
+
+/*
+ * 函数名      : GetTheMsgId
+ * 功能        : 得到一个MSG IPCID
+ * 参数        : pName [in] (char * 类型): 名字
+ *             : u32Size [in] (JA_UI32类型): 共享内存的大小
+ * 返回值      : 正确返回非负ID号, 否则返回错误码
+ * 作者        : 许龙杰
+ */
+int32_t GetTheMsgId(const char * pName)
+{
+    key_t keyMsg;
+    int32_t s32MsgId = 0;
+
+	if (NULL == pName)
+	{
+		pName = MSG_FILE;
+	}
+	keyMsg = MakeASpecialKey(pName);
+
+    if (keyMsg < 0)
+    {
+        PRINT("MakeASpecialKey error: %s", strerror(errno));
+        return MY_ERR(_Err_SYS + errno);
+    }
+    PRINT("the key is 0x%08x\n", keyMsg);
+    s32MsgId = msgget(keyMsg, IPC_CREAT | IPC_EXCL | MODE_RW);
+    if (s32MsgId != -1)
+    {
+        return s32MsgId;
+    }
+    PRINT("I can't create the message ID, and I will get it\n");
+    s32MsgId = msgget(keyMsg, MODE_RW);
+    if (s32MsgId < 0)
+    {
+        PRINT("msgget error: %s", strerror(errno));
+        return MY_ERR(_Err_SYS + errno);
+    }
+
+    return s32MsgId;
+}
+
+/*
+ * 函数名      : ReleaseAMsgId
+ * 功能        : 从系统中释放一个MSG ID 所有进程只需要一个进程释放
+ * 参数        : s32Id [in] (JA_SI32类型): ID号
+ * 返回值      : 无
+ * 作者        : 许龙杰
+ */
+void ReleaseAMsgId(int32_t s32Id)
+{
+	if (s32Id < 0)
+	{
+		return;
+	}
+	msgctl(s32Id, IPC_RMID, NULL);
 }
 

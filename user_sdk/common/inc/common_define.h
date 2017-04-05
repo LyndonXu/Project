@@ -35,6 +35,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/msg.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -69,17 +70,7 @@ extern "C" {
 //#define UPGRADE_LIB_COMPLINE
 //#define USING_SELF_DNS_RESOLVE
 
-#if HAS_CROSS
-#if defined _DEBUG
-#define WORK_DIR							"/tmp/workdir/"
-#else
-#define WORK_DIR							"/var/workdir/"
-#endif
-#define LOG_DIR								"/media/sdcard/log/"
-#else
-#define WORK_DIR							"/tmp/workdir/"
 #define LOG_DIR								WORK_DIR"log/"
-#endif
 
 #define PROCESS_DIR							WORK_DIR
 
@@ -119,6 +110,7 @@ extern "C" {
 #define KEY_FILE							"key.key"
 #define SEM_FILE							"sem.sem"
 #define SHM_FILE							"shm.shm"
+#define MSG_FILE							"msg.msg"
 
 #define MODE_RW								(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 #define LOCK_MODE							(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
@@ -294,6 +286,9 @@ typedef struct _tagStMCS
     uint32_t u32TotalSize;          /* 整个命令流的大小, 在getbuf的时候更新 */
     void *pBuf;                  	/* 用户获取命令数据的时候用到的指针 */
 }StMCS;
+
+
+void LittleAndBigEndianTransfer(char *pDest, const char *pSrc, uint32_t u32Size);
 
 
 typedef struct _tagStMemCheck
@@ -1032,8 +1027,6 @@ enum
 	_MCS_Cmd_Inner_LoadWifiConfig_SetIp,
 	_MCS_Cmd_Inner_ClearWifi,
 
-
-	_MCS_Cmd_Echo = 0x08000000,
 };
 
 typedef struct _tagStSelfUpdateProtocol

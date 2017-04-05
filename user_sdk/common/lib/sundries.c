@@ -17,6 +17,9 @@
 #include <linux/sockios.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <termios.h>
+
+
 
 
 #if 0
@@ -1558,5 +1561,96 @@ int32_t GetNetLinkStatus(const char *pInterfaceName)
 
 	return MY_ERR(_Err_Common);
 }
+
+
+
+/*
+ * 函数名		: UARTInit
+ * 功能			: 串口初始化
+ * 参数			: s32FDUart [in]: (int32_t * 类型) 打开的串口文件描述符
+ * 				  s32Bandrate [in]: (int32_t * 类型) 波特率，参考文件<termios.h>，B0～B4000000
+ * 				  s32Parity[in]: (int32_t * 类型) 奇偶校验，0无校验，1奇校验，2偶校验
+ * 				  s32DataBits[in]: (int32_t * 类型) 数据长度，[5, 8]
+ * 				  s32StopBits: (int32_t * 类型) 停止位，[1, 2]
+ * 				  u8ReadCnt: (uint8_t * 类型) 参考文件<termios.h>
+ * 				  u8ReadTime: (uint8_t * 类型) 参考帮助文档c_cc[VMIN]和c_cc[VTIME]
+ * 返回值      : (int32_t类型) 0表示成功, 否则表示错误
+ * 作者        : 许龙杰
+ */
+int32_t UARTInit(int32_t s32FDUart, int32_t s32Bandrate, int32_t s32Parity,
+		int32_t s32DataBits, int32_t s32StopBits, uint8_t u8ReadCnt, uint8_t u8ReadTime)
+{
+	struct termios stConfig;
+	if (s32FDUart < 0)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+
+	if (tcgetattr(s32FDUart, &stConfig) < 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+
+#if 0
+	do
+	{
+		int32_t *pInt = (int32_t *)(&stConfig);
+		int32_t i;
+		for(i = 0; i < sizeof(stConfig) / 4; i++)
+		{
+			printf("%08X\n", pInt[i]);
+		}
+		printf("time, %02x\n", stConfig.c_cc[VTIME]);
+		printf("min, %02x\n", stConfig.c_cc[VMIN]);
+	} while(0);
+#endif
+	//cfmakeraw(&stConfig);
+	//stConfig.c_cflag &= ~(CSTOPB | CBAUD | CSIZE | PARENB | PARODD);
+
+	memset(&stConfig, 0, sizeof(struct termios));
+	stConfig.c_cflag |= (CLOCAL | CREAD);
+
+	if (cfsetispeed(&stConfig, s32Bandrate) < 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+
+	if (cfsetospeed(&stConfig, s32Bandrate) < 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+
+	if (s32Parity == 1)		/* odd */
+	{
+		stConfig.c_cflag |= (PARENB | PARODD);
+		stConfig.c_iflag |= (INPCK | ISTRIP);
+	}
+	else if (s32Parity == 2) /* even */
+	{
+		stConfig.c_cflag |= (PARENB);
+		stConfig.c_iflag |= (INPCK | ISTRIP);
+	}
+
+	if ((s32DataBits >= 5) && (s32DataBits <= 8))
+	{
+		stConfig.c_cflag |= ((s32DataBits - 5) << 5);
+	}
+
+	if (s32StopBits == 2)
+	{
+		stConfig.c_cflag |= CSTOPB;
+	}
+
+	stConfig.c_cc[VMIN] = u8ReadCnt;
+	stConfig.c_cc[VTIME] = u8ReadTime;
+
+	if (tcsetattr(s32FDUart, TCSANOW, &stConfig) < 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+
+	return 0;
+}
+
 
 

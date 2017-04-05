@@ -6,6 +6,6 @@ export MACH_TYPE := NVR3531_001
 export HOST_TYPE := arm-hisiv300-linux
 
 #tool chain
-export CROSS = $(HOST_TYPE)-
+#export CROSS = $(HOST_TYPE)-
 export CC = $(CROSS)gcc
 export CXX = $(CROSS)g++
