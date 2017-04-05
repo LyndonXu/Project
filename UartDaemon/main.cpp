@@ -19,48 +19,21 @@ void SignalRegister(void)
 	signal(SIGTERM, ProcessStop);
 }
 
-void *ThreadRead(void *pArg)
-{
-	int32_t s32MsgId = GetTheMsgId(MSG_KEY_NAME);
-	if (s32MsgId < 0)
-	{
-		return NULL;
-	}
-	while (!g_boIsExit)
-	{
-		StMsgStruct stMsg = {0};
-		int32_t s32Err = 0;
-		s32Err = msgrcv(s32MsgId, &stMsg, sizeof(StMsgStruct), 0, 0);
-		if (s32Err < 0)
-		{
-			if (errno == EIDRM)
-			{
-				PRINT("msg(%s) is removed\n", MSG_KEY_NAME);
-				break;
-			}
-
-			continue;
-		}
-
-		PRINT("get a msg, %08x-%08x\n", stMsg.u32WParma, stMsg.u32LParma);
-
-	}
-
-	return 0;
-}
 #define YAN_ANALYSIS_LEN		2048
-uint8_t *pBufProtocol[YAN_ANALYSIS_LEN];
+static uint8_t s_u8BufProtocol[YAN_ANALYSIS_LEN];
 
 typedef struct _tagStThreadArg
 {
 	int32_t s32FDUart;
 	int32_t s32MsgId;
+	CEchoCntl *pEchoCntl;
 }StThreadArg;
 
 void *ThreadUartRead(void *pArg)
 {
 	int32_t s32FDUart = ((StThreadArg *)pArg)->s32FDUart;
 	int32_t s32MsgId = ((StThreadArg *)pArg)->s32MsgId;
+	//CEchoCntl *pEchoCntl = ((StThreadArg *)pArg)->pEchoCntl;
 	uint8_t u8ReadBuf[64];
 	uint64_t u64TimeMsgRcv = TimeGetTime();
 	StCycleBuf stAnalysis = {NULL, 0};
@@ -69,7 +42,7 @@ void *ThreadUartRead(void *pArg)
 		return NULL;
 	}
 
-	CycleMsgInit(&stAnalysis, pBufProtocol, YAN_ANALYSIS_LEN);
+	CycleMsgInit(&stAnalysis, s_u8BufProtocol, YAN_ANALYSIS_LEN);
 
 	while (!g_boIsExit)
 	{
@@ -78,22 +51,23 @@ void *ThreadUartRead(void *pArg)
 		if (s32ReadCnt <= 0)
 		{
 			uint64_t u64TimeCur = TimeGetTime();
-			PRINT("current time: %lld, %lld\n", u64TimeCur, u64TimeMsgRcv);
+			//PRINT("current time: %lld, %lld\n", u64TimeCur, u64TimeMsgRcv);
 			if (u64TimeCur - u64TimeMsgRcv > 5 * 1000)
 			{
 				StMsgStruct stMsg = {0};
 				stMsg.u32Type = _MSG_UART_Out;
-				stMsg.u32LParma = 8;
+				stMsg.u32LParam = 8;
 				stMsg.pMsg = malloc(8);
 				if (stMsg.pMsg != NULL)
 				{
 					uint8_t u8Buf[8] = { 0xAA, 0x00, 0x0C, 0x80, 0x00, 0x00, 0x02, 0x24};
 					memcpy(stMsg.pMsg, u8Buf, 8);
-					if (msgsnd(s32MsgId, &stMsg, sizeof(StMsgStruct) - offsetof(StMsgStruct, u32WParma), IPC_NOWAIT) < 0)
+					if (msgsnd(s32MsgId, &stMsg, sizeof(StMsgStruct) - offsetof(StMsgStruct, u32WParam), IPC_NOWAIT) < 0)
 					{
 						free(stMsg.pMsg);
 					}
 				}
+				u64TimeMsgRcv += 1000;
 			}
 			continue;
 		}
@@ -115,8 +89,8 @@ void *ThreadUartRead(void *pArg)
 #if 0
 				StMsgStruct stMsg = {0};
 				stMsg.pMsg = pMsg;
-				stMsg.u32WParma = s32ProtocolType;
-				stMsg.u32LParma = u32GetCmdLen;
+				stMsg.u32WParam = s32ProtocolType;
+				stMsg.u32LParam = u32GetCmdLen;
 				stMsg.u32Type = _MSG_UART_IN;
 #endif
 				uint32_t i;
@@ -168,11 +142,10 @@ void *ThreadUartWrite(void *pArg)
 
 			continue;
 		}
-		PRINT("get a msg, %08x-%08x-%p\n", stMsg.u32WParma, stMsg.u32LParma, stMsg.pMsg);
-
-		if ((stMsg.u32LParma != 0) && (stMsg.pMsg != NULL))
+		PRINT("get a msg, %08x-%08x-%p\n", stMsg.u32WParam, stMsg.u32LParam, stMsg.pMsg);
+		if ((stMsg.u32LParam != 0) && (stMsg.pMsg != NULL))
 		{
-			write(s32FDUart, stMsg.pMsg, stMsg.u32LParma);
+			write(s32FDUart, stMsg.pMsg, stMsg.u32LParam);
 			tcflush(s32FDUart, TCIOFLUSH);
 			free (stMsg.pMsg);
 		}
@@ -181,41 +154,6 @@ void *ThreadUartWrite(void *pArg)
 	return NULL;
 }
 
-
-int32_t Test()
-{
-	pthread_t u32ThreadRecvId;
-	int32_t s32Err = 0;
-	int32_t s32MsgId = -1;
-	SignalRegister();
-
-	s32MsgId = GetTheMsgId(MSG_KEY_NAME);
-	if (s32MsgId < 0)
-	{
-		return -1;
-	}
-	s32Err = MakeThread(ThreadRead, NULL, false, &u32ThreadRecvId, false);
-	if (s32Err < 0)
-	{
-		ReleaseAMsgId(s32MsgId);
-		return -1;
-	}
-
-	uint32_t u32Cnt = 0;
-	while (!g_boIsExit)
-	{
-		StMsgStruct stMsg = {1, u32Cnt++};
-		msgsnd(s32MsgId, &stMsg, sizeof(StMsgStruct) - offsetof(StMsgStruct, u32WParma), IPC_NOWAIT);
-		sleep(1);
-	}
-
-	ReleaseAMsgId(s32MsgId);
-
-	pthread_join(u32ThreadRecvId, NULL);
-
-
-	return 0;
-}
 
 void *ThreadUnixMsg(void *pArg)
 {
@@ -292,10 +230,10 @@ void *ThreadUnixMsg(void *pArg)
 									StMsgStruct stMsg;
 									memcpy(pData, pMCS, u32DataLength);
 									stMsg.pMsg = pData;
-									stMsg.u32LParma = u32DataLength;
+									stMsg.u32LParam = u32DataLength;
 									stMsg.u32Type = _MSG_UART_Out;
 									if (msgsnd(s32MsgId, &stMsg, sizeof(StMsgStruct) -
-											offsetof(StMsgStruct, u32WParma), IPC_NOWAIT) < 0)
+											offsetof(StMsgStruct, u32WParam), IPC_NOWAIT) < 0)
 									{
 										free(stMsg.pMsg);
 									}
@@ -331,73 +269,16 @@ void *ThreadUnixMsg(void *pArg)
 
 }
 
-
-void *ThreadEchoCntlFlush(void *pArg)
-{
-	CEchoCntl *pCntl = (CEchoCntl *)pArg;
-	uint8_t u8Msg[8];
-	int32_t i = 0;
-	while (!g_boIsExit)
-	{
-		pCntl->Flush(((i++) * 2), u8Msg, 8);
-		usleep(10 * 1000);
-	}
-	return NULL;
-}
-
-void EchoCntlTest(void)
-{
-	pthread_t s32TreadTest = -1;
-	uint8_t u8Msg[8];
-	CEchoCntl csCntl;
-	csCntl.Init(-1);
-
-	SignalRegister();
-
-	MakeThread(ThreadEchoCntlFlush, &csCntl, false, &s32TreadTest, false);
-
-	int32_t i = 0;
-	for (;i < 10; i++)
-	{
-		CEchoInfo *pInfo = new CEchoInfo;
-		if (pInfo != NULL)
-		{
-			pInfo->Init(u8Msg, 8, -1, i);
-			csCntl.InsertAElement(pInfo);
-		}
-	}
-
-	while (!g_boIsExit)
-	{
-		CEchoInfo *pInfo = new CEchoInfo;
-		if (pInfo != NULL)
-		{
-			pInfo->Init(u8Msg, 8, -1, i++);
-			csCntl.InsertAElement(pInfo);
-		}
-		usleep(1000 * 1000);
-	}
-
-
-	pthread_join(s32TreadTest, NULL);
-
-	return;
-}
-
 #if 1
 int main(int argc, const char *argv[])
 {
-	EchoCntlTest();
-	return 0;
-}
-#else
-int main(int argc, const char *argv[])
-{
 	int32_t s32Err = 0;
-	pthread_t s32TreadUartWrite = -1;
+	pthread_t s32ThreadUartWrite = -1;
+	pthread_t s32ThreadUnixMsg = -1;
 	int32_t s32FDUart = open("/dev/ttyUSB0", O_RDWR);
 	int32_t s32MsgId = -1;
 	StThreadArg stArg;
+	CEchoCntl csEchoCntl;
 	if (s32FDUart < 0)
 	{
 		PRINT("error is: %s\n", strerror(errno));
@@ -417,28 +298,47 @@ int main(int argc, const char *argv[])
 		PRINT("UARTInit error: 0x%08x\n", s32Err);
 
 		ReleaseAMsgId(s32MsgId);
-		close(s32FDUart);
-		return -1;
+		goto end;
+	}
+
+	if ((s32Err = csEchoCntl.Init(s32MsgId)) < 0)
+	{
+		PRINT("csEchoCntl init error: 0x%08x\n", s32Err);
+		goto end;
 	}
 
 	stArg.s32FDUart = s32FDUart;
 	stArg.s32MsgId = s32MsgId;
+	stArg.pEchoCntl = &csEchoCntl;
 
-	s32Err = MakeThread(ThreadUartWrite, &stArg, false, &s32TreadUartWrite, false);
+	s32Err = MakeThread(ThreadUartWrite, &stArg, false, &s32ThreadUartWrite, false);
 	if (s32Err < 0)
 	{
-		ReleaseAMsgId(s32MsgId);
-		close(s32FDUart);
+		goto end;
+		return -1;
+	}
+	s32Err = MakeThread(ThreadUnixMsg, &stArg, false, &s32ThreadUnixMsg, false);
+	if (s32Err < 0)
+	{
+		goto end;
 		return -1;
 	}
 
 
 	ThreadUartRead(&stArg);
 
+end:
 	g_boIsExit = true;
 	ReleaseAMsgId(s32MsgId);
 
-	pthread_join(s32TreadUartWrite, NULL);
+	if (s32ThreadUartWrite >= 0)
+	{
+		pthread_join(s32ThreadUartWrite, NULL);
+	}
+	if (s32ThreadUnixMsg >= 0)
+	{
+		pthread_join(s32ThreadUnixMsg, NULL);
+	}
 
 	close(s32FDUart);
 	return 0;

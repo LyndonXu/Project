@@ -37,7 +37,7 @@ int32_t CEchoInfo::Init(uint8_t *pMsg, int32_t s32MsgLen, int32_t s32Socket, int
 	memcpy(m_pMsg, pMsg, s32MsgLen);
 
 	m_s32Serial = s32Serial;
-	m_u64SendTime = TimeGetTime();
+	m_u64SendTime = 0;//TimeGetTime();
 	m_s32MsgLen = s32MsgLen;
 	m_s32Socket = s32Socket;
 	return 0;
@@ -144,15 +144,15 @@ int32_t CEchoCntl::Flush(int32_t s32Serial, uint8_t *pMsg, int32_t s32MsgLen)
 				PRINT("retry send(%d) the info: %d\n", pInfo->m_s32SendCnt, pInfo->m_s32Serial);
 				StMsgStruct stMsg = {0};
 				stMsg.u32Type = _MSG_UART_Out;
-				stMsg.u32LParma = pInfo->m_s32MsgLen;
+				stMsg.u32LParam = pInfo->m_s32MsgLen;
 				stMsg.pMsg = malloc(pInfo->m_s32MsgLen);
 				if (stMsg.pMsg != NULL)
 				{
 					memcpy(stMsg.pMsg, pInfo->m_pMsg, pInfo->m_s32MsgLen);
-/*
+/**/
 					if (msgsnd(m_s32MsgId, &stMsg, sizeof(StMsgStruct) -
-							offsetof(StMsgStruct, u32WParma), IPC_NOWAIT) < 0)
-*/
+							offsetof(StMsgStruct, u32WParam), IPC_NOWAIT) < 0)
+
 					{
 						free(stMsg.pMsg);
 					}

@@ -1631,9 +1631,29 @@ int32_t UARTInit(int32_t s32FDUart, int32_t s32Bandrate, int32_t s32Parity,
 		stConfig.c_iflag |= (INPCK | ISTRIP);
 	}
 
-	if ((s32DataBits >= 5) && (s32DataBits <= 8))
+	switch (s32DataBits)
 	{
-		stConfig.c_cflag |= ((s32DataBits - 5) << 5);
+		case 5:
+		{
+			stConfig.c_cflag |= CS5;
+			break;
+		}
+		case 6:
+		{
+			stConfig.c_cflag |= CS6;
+			break;
+		}
+		case 7:
+		{
+			stConfig.c_cflag |= CS7;
+			break;
+		}
+		default:
+		{
+			stConfig.c_cflag |= CS8;
+			break;
+		}
+
 	}
 
 	if (s32StopBits == 2)

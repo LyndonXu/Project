@@ -105,7 +105,7 @@ enum
 };
 
 #if ((defined _DEBUG) && (!(defined NOT_USING_PRINT)))
-#define PRINT(x, ...) printf("[%s:%d]: "x, __FILE__, __LINE__, ##__VA_ARGS__)
+#define PRINT(x, ...) printf("[%s:%d]: " x, __FILE__, __LINE__, ##__VA_ARGS__)
 #else
 #define PRINT(x, ...)
 #endif

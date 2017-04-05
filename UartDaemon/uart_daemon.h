@@ -47,17 +47,17 @@ enum
 
 typedef struct _tagStMsgStruct
 {
-	uint32_t u32Type;
-	uint32_t u32WParma;
-	uint32_t u32LParma;
-	void *pMsg;
+	uint32_t u32Type;			/* type */
+	uint32_t u32WParam;			/* main parameter */
+	uint32_t u32LParam;			/* minor parameter */
+	void *pMsg;					/* message */
 }StMsgStruct;
 
 
 class CEchoInfo
 {
 public:
-	int32_t m_s32Serial;
+	int32_t m_s32Serial;		/*  */
 	uint8_t *m_pMsg;
 	int32_t m_s32MsgLen;
 	uint8_t *m_pEcho;
