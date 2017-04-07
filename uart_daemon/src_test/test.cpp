@@ -422,7 +422,7 @@ int main(int argc, char * const argv[])
 			for (i = 0, j = 0; i < u32Len && j < u32Length; i += 3, j++)
 			{
 				sscanf(pDataIn + i, "%hhx", pData + j);
-				printf("get data: %hhx\n", pData[j]);
+				//printf("get data: %hhx\n", pData[j]);
 			}
 			break;
 		}
@@ -436,7 +436,6 @@ int main(int argc, char * const argv[])
 	if (s32Socket >= 0)
 	{
 		/*  */
-		PRINT("send data\n");
 		MCSSyncSend(s32Socket, 2000, u32Cmd, u32Length, pData);
 		if (boNeedEcho)
 		{
@@ -448,8 +447,9 @@ int main(int argc, char * const argv[])
 			{
 				for (uint32_t i = 0; i < u32Size; i++)
 				{
-					printf("%hhx \n", pEcho[i]);
+					printf("%02hhx ", pEcho[i]);
 				}
+				printf("\n");
 				MCSSyncFree(pEcho);
 			}
 		}

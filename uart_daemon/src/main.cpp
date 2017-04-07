@@ -302,7 +302,7 @@ void *ThreadUnixMsg(void *pArg)
 								}
 								StYNAAuthForOther stAuth;
 								stAuth.s32Serial = s32Serial++;
-								memcpy(stAuth.u8AuthData, pMCS, 16);
+								memcpy(stAuth.u8RandData, pMCS, 16);
 								StMsgStruct stMsg = {0};
 								stMsg.pMsg = YNAMakeASimpleVarialbleCmd(0x8020, &stAuth,
 										sizeof(StYNAAuthForOther), &stMsg.u32LParam);
