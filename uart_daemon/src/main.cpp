@@ -4,7 +4,7 @@
  *  Created on: 2017年4月3日
  *      Author: lyndon
  */
-#include "uart_daemon.h"
+#include "../../uart_daemon/inc/uart_daemon.h"
 bool g_boIsExit = false;
 
 
@@ -122,6 +122,7 @@ void *ThreadUartRead(void *pArg)
 
 							uint8_t *pData = pVariableCmd + 6;
 							u16CmdLen = u16Count * u16Length;
+							PRINT("YNA command: %hx, %d, %d\n", u16CmdLen, u16Count, u16Length);
 							switch (u16Command)
 							{
 								case 0x8020:
@@ -131,7 +132,8 @@ void *ThreadUartRead(void *pArg)
 									{
 										break;
 									}
-									pEchoCntl->Flush(pAuth->s32Serial, pAuth->u8AuthData, 8);
+									PRINT("pAuth->s32Serial: %d\n", pAuth->s32Serial);
+									pEchoCntl->Flush(pAuth->s32Serial, pAuth->u8AuthData, 16);
 
 									break;
 								}
@@ -209,7 +211,7 @@ void *ThreadUnixMsg(void *pArg)
 		return NULL;
 	}
 	int32_t s32Server = ServerListen(UNIX_SOCKET_NAME);
-	int32_t s32Serial;
+	int32_t s32Serial = 0;
 
 	if (s32Server < 0)
 	{
@@ -294,15 +296,15 @@ void *ThreadUnixMsg(void *pArg)
 							case _Unix_Cmd_Uart_Send_Auth:
 							{
 								PRINT("get authentic from unix: %d\n", u32DataLength);
-								if (u32DataLength != 8)
+								if (u32DataLength != 16)
 								{
 									break;
 								}
 								StYNAAuthForOther stAuth;
 								stAuth.s32Serial = s32Serial++;
-								memcpy(stAuth.u8AuthData, pMCS, 8);
+								memcpy(stAuth.u8AuthData, pMCS, 16);
 								StMsgStruct stMsg = {0};
-								stMsg.pMsg = YNAMakeASimpleVarialbleCmd(0x0820, &stAuth,
+								stMsg.pMsg = YNAMakeASimpleVarialbleCmd(0x8020, &stAuth,
 										sizeof(StYNAAuthForOther), &stMsg.u32LParam);
 
 								if (stMsg.pMsg != NULL)
@@ -312,7 +314,7 @@ void *ThreadUnixMsg(void *pArg)
 									if (pInfo != NULL)
 									{
 										if (pInfo->Init((uint8_t *)stMsg.pMsg, stMsg.u32LParam,
-												s32Client, s32Serial) < 0)
+												s32Client, stAuth.s32Serial) < 0)
 										{
 											delete pInfo;
 										}

@@ -5,6 +5,8 @@
  *      Author: lyndon
  */
 
+#include <unistd.h>
+#include "../../uart_daemon/inc/uart_daemon.h"
 
 #if 0
 
@@ -360,6 +362,111 @@ int32_t Test()
 	return 0;
 }
 #endif
+
+
+
+int main(int argc, char * const argv[])
+{
+	uint32_t u32Cmd = -1, u32Length = -1;
+	const char *pDataIn = NULL;
+	bool boNeedEcho = false;
+	int32_t s32Char;
+	while ((s32Char = getopt(argc, argv, "c:l:d:o")) != -1)
+	{
+		switch (s32Char)
+		{
+			case 'c':
+			{
+				sscanf(optarg, "%x", &u32Cmd);
+				break;
+			}
+			case 'd':
+			{
+				pDataIn = optarg;
+				break;
+			}
+			case 'l':
+			{
+				sscanf(optarg, "%d", &u32Length);
+				break;
+			}
+			case 'o':
+			{
+				boNeedEcho = true;
+				break;
+			}
+            default: /* '?' */
+                fprintf(stderr, "Usage: %s [-c command number] [-l length] "
+                		"[-d data] [-o need print echo]\n", argv[0]);
+				return -1;
+		}
+	}
+
+
+	if (u32Length == (uint32_t)(-1))
+	{
+		u32Length = strlen(pDataIn);
+	}
+	uint8_t *pData = (uint8_t *)malloc(u32Length);
+	if (pData == NULL)
+	{
+		return -1;
+	}
+	switch (u32Cmd)
+	{
+		case _Unix_Cmd_Uart_Send_Data:
+		case _Unix_Cmd_Uart_Send_Auth:
+		{
+			uint32_t u32Len = strlen(pDataIn);
+			uint32_t i, j;
+			for (i = 0, j = 0; i < u32Len && j < u32Length; i += 3, j++)
+			{
+				sscanf(pDataIn + i, "%hhx", pData + j);
+				printf("get data: %hhx\n", pData[j]);
+			}
+			break;
+		}
+		default:
+			u32Cmd = _Unix_Cmd_Uart_Send_Data;
+			memcpy(pData, pDataIn, u32Length);
+			break;
+	}
+
+	int32_t s32Socket = ClientConnect(UNIX_SOCKET_NAME);
+	if (s32Socket >= 0)
+	{
+		/*  */
+		PRINT("send data\n");
+		MCSSyncSend(s32Socket, 2000, u32Cmd, u32Length, pData);
+		if (boNeedEcho)
+		{
+			uint8_t *pEcho = NULL;
+			uint32_t u32Size;
+			int32_t s32Err;
+			pEcho = (uint8_t *)MCSSyncReceive(s32Socket, false, 2000, &u32Size, &s32Err);
+			if (pEcho != NULL)
+			{
+				for (uint32_t i = 0; i < u32Size; i++)
+				{
+					printf("%hhx \n", pEcho[i]);
+				}
+				MCSSyncFree(pEcho);
+			}
+		}
+		close(s32Socket);
+	}
+	else
+	{
+		PRINT("socket connect error: %08x\n", s32Socket);
+	}
+
+	free(pData);
+
+	return 0;
+}
+
+/* AA 00 0C 80 00 00 02 24 */
+
 
 
 

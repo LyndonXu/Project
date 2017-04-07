@@ -36,7 +36,7 @@ INC_FLAGS = -I ./inc
 INC_FLAGS += -I $(JSON_DIR)include
 INC_FLAGS += -I $(INSTALL_DIR)
 
-PROJECT = UartDaemon
+PROJECT = uart_daemon
 
 
 #compile parameters
@@ -126,7 +126,7 @@ RM_FILE += $(RM_TARGET)
 
 .PHONY : clean all
 
-all : $(TARGET)
+all : $(TARGET) test
 $(TARGET) : $(OBJ)
 	$(LINK.$(FILETYPE)) -o $@ $^ $(LIBS)
 
