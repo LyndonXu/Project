@@ -1241,6 +1241,13 @@ enum
 };
 
 
+typedef struct _tagStYNAAuthForOther
+{
+	int32_t s32Serial;
+	uint8_t u8RandData[16];
+	uint8_t u8AuthData[16];
+}StYNAAuthForOther;
+
 typedef struct _tagStCycleBuf
 {
 	char *pBuf;						/* 指向的数据指针 */

@@ -4,6 +4,7 @@
  *  Created on: 2017年4月3日
  *      Author: lyndon
  */
+#define NOT_USING_PRINT
 #include "common.h"
 #include "common_define.h"
 

@@ -42,6 +42,9 @@ enum
 enum
 {
 	_Unix_Cmd_Uart_Send_Data = _MCS_Cmd_UartDaemon,
+	_Unix_Cmd_Uart_Send_Auth,
+
+
 };
 
 
@@ -94,6 +97,7 @@ class CEchoCntl
 	int32_t m_s32MsgId;
 	CListEchoInfo m_csList;
 
+	int32_t ElementMsgSend(CEchoInfo *pInfo);
 public:
 	CEchoCntl();
 	~CEchoCntl()

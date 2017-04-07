@@ -90,6 +90,29 @@ void CEchoCntl::Destory(void)
 	pthread_mutex_destroy(&m_stMutex);
 }
 
+int32_t CEchoCntl::ElementMsgSend(CEchoInfo *pInfo)
+{
+	PRINT("retry send(%d) the info: %d\n", pInfo->m_s32SendCnt, pInfo->m_s32Serial);
+	StMsgStruct stMsg = {0};
+	stMsg.u32Type = _MSG_UART_Out;
+	stMsg.u32LParam = pInfo->m_s32MsgLen;
+	stMsg.pMsg = malloc(pInfo->m_s32MsgLen);
+	if (stMsg.pMsg != NULL)
+	{
+		memcpy(stMsg.pMsg, pInfo->m_pMsg, pInfo->m_s32MsgLen);
+		if (msgsnd(m_s32MsgId, &stMsg, sizeof(StMsgStruct) -
+				offsetof(StMsgStruct, u32WParam), IPC_NOWAIT) < 0)
+
+		{
+			free(stMsg.pMsg);
+		}
+	}
+	pInfo->m_u64SendTime = TimeGetTime();
+	pInfo->m_s32SendCnt++;
+
+	return 0;
+}
+
 int32_t CEchoCntl::InsertAElement(CEchoInfo *pInfo)
 {
 	if (pInfo == NULL)
@@ -101,6 +124,7 @@ int32_t CEchoCntl::InsertAElement(CEchoInfo *pInfo)
 
 	PRINT("insert the info: %d\n", pInfo->m_s32Serial);
 	m_csList.push_back(pInfo);
+	ElementMsgSend(pInfo);
 
 	pthread_mutex_unlock(&m_stMutex);
 	return 0;
@@ -141,24 +165,7 @@ int32_t CEchoCntl::Flush(int32_t s32Serial, uint8_t *pMsg, int32_t s32MsgLen)
 			}
 			else if ((u64CurTime - pInfo->m_u64SendTime) > 500)
 			{
-				PRINT("retry send(%d) the info: %d\n", pInfo->m_s32SendCnt, pInfo->m_s32Serial);
-				StMsgStruct stMsg = {0};
-				stMsg.u32Type = _MSG_UART_Out;
-				stMsg.u32LParam = pInfo->m_s32MsgLen;
-				stMsg.pMsg = malloc(pInfo->m_s32MsgLen);
-				if (stMsg.pMsg != NULL)
-				{
-					memcpy(stMsg.pMsg, pInfo->m_pMsg, pInfo->m_s32MsgLen);
-/**/
-					if (msgsnd(m_s32MsgId, &stMsg, sizeof(StMsgStruct) -
-							offsetof(StMsgStruct, u32WParam), IPC_NOWAIT) < 0)
-
-					{
-						free(stMsg.pMsg);
-					}
-				}
-				pInfo->m_u64SendTime = u64CurTime;
-				pInfo->m_s32SendCnt++;
+				ElementMsgSend(pInfo);
 			}
 		}
 

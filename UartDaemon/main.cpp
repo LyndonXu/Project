@@ -33,11 +33,11 @@ void *ThreadUartRead(void *pArg)
 {
 	int32_t s32FDUart = ((StThreadArg *)pArg)->s32FDUart;
 	int32_t s32MsgId = ((StThreadArg *)pArg)->s32MsgId;
-	//CEchoCntl *pEchoCntl = ((StThreadArg *)pArg)->pEchoCntl;
+	CEchoCntl *pEchoCntl = ((StThreadArg *)pArg)->pEchoCntl;
 	uint8_t u8ReadBuf[64];
 	uint64_t u64TimeMsgRcv = TimeGetTime();
 	StCycleBuf stAnalysis = {NULL, 0};
-	if (s32FDUart < 0)
+	if ((s32FDUart < 0) || (pEchoCntl == NULL))
 	{
 		return NULL;
 	}
@@ -69,30 +69,25 @@ void *ThreadUartRead(void *pArg)
 				}
 				u64TimeMsgRcv += 1000;
 			}
+			pEchoCntl->Flush(0, NULL, 0);
 			continue;
 		}
 
 		PRINT("get some data: %d\n", s32ReadCnt);
 
-		void *pMsg = NULL;
+		uint8_t *pMsg = NULL;
 		do
 		{
 			int32_t s32Err;
 			uint32_t u32GetCmdLen;
 			int32_t s32ProtocolType;
-			pMsg = CycleGetOneMsg(&stAnalysis, (const char *)u8ReadBuf, s32ReadCnt,
+			pMsg = (uint8_t *)CycleGetOneMsg(&stAnalysis, (const char *)u8ReadBuf, s32ReadCnt,
 				&u32GetCmdLen, &s32ProtocolType, &s32Err);
 			s32ReadCnt = 0;	/* flush all the valid messge */
 			if (pMsg != NULL)
 			{
 				u64TimeMsgRcv = TimeGetTime();
 #if 0
-				StMsgStruct stMsg = {0};
-				stMsg.pMsg = pMsg;
-				stMsg.u32WParam = s32ProtocolType;
-				stMsg.u32LParam = u32GetCmdLen;
-				stMsg.u32Type = _MSG_UART_IN;
-#endif
 				uint32_t i;
 				uint8_t *pCmd = (uint8_t *)pMsg;
 				for (i = 0; i < u32GetCmdLen; i++)
@@ -100,6 +95,55 @@ void *ThreadUartRead(void *pArg)
 					printf("0x%02x ", pCmd[i]);
 				}
 				printf("\nget data: %d\n", u32GetCmdLen);
+#endif
+				PRINT("CycleGetOneMsg get some message: %d, type%d\n", u32GetCmdLen, s32ProtocolType);
+				if (s32ProtocolType == _Protocol_YNA)
+				{
+					if (pMsg[_YNA_Mix] == 0x04 && pMsg[_YNA_Cmd] == 0x00)
+					{
+						uint32_t u32TotalLength = 0;
+						uint32_t u32ReadLength = 0;
+						uint8_t *pVariableCmd;
+
+						/* get the total command length */
+						LittleAndBigEndianTransfer((char *)(&u32TotalLength), (const char *)pMsg + _YNA_Data2, 2);
+						pVariableCmd = pMsg + PROTOCOL_YNA_DECODE_LENGTH;
+						u32TotalLength -= 2; /* CRC16 */
+						while (u32ReadLength < u32TotalLength)
+						{
+							uint16_t u16Command = 0, u16Count = 0, u16Length = 0;
+							uint16_t u16CmdLen;
+							LittleAndBigEndianTransfer((char *)(&u16Command),
+								(char *)pVariableCmd, 2);
+							LittleAndBigEndianTransfer((char *)(&u16Count),
+								(char *)pVariableCmd + 2, 2);
+							LittleAndBigEndianTransfer((char *)(&u16Length),
+								(char *)pVariableCmd + 4, 2);
+
+							uint8_t *pData = pVariableCmd + 6;
+							u16CmdLen = u16Count * u16Length;
+							switch (u16Command)
+							{
+								case 0x8020:
+								{
+									StYNAAuthForOther *pAuth = (StYNAAuthForOther *)pData;
+									if (u16CmdLen != sizeof(StYNAAuthForOther))
+									{
+										break;
+									}
+									pEchoCntl->Flush(pAuth->s32Serial, pAuth->u8AuthData, 8);
+
+									break;
+								}
+								default:
+									break;
+							}
+							u32ReadLength += (6 + (uint32_t)u16CmdLen);
+							pVariableCmd = pMsg + PROTOCOL_YNA_DECODE_LENGTH + u32ReadLength;
+						}
+					}
+				}
+
 				free(pMsg);
 			}
 			else
@@ -158,8 +202,14 @@ void *ThreadUartWrite(void *pArg)
 void *ThreadUnixMsg(void *pArg)
 {
 	int32_t s32MsgId = ((StThreadArg *)pArg)->s32MsgId;
+	CEchoCntl *pEchoCntl = ((StThreadArg *)pArg)->pEchoCntl;
 
+	if (s32MsgId < 0 || pEchoCntl == NULL)
+	{
+		return NULL;
+	}
 	int32_t s32Server = ServerListen(UNIX_SOCKET_NAME);
+	int32_t s32Serial;
 
 	if (s32Server < 0)
 	{
@@ -224,6 +274,7 @@ void *ThreadUnixMsg(void *pArg)
 						{
 							case _Unix_Cmd_Uart_Send_Data:
 							{
+								PRINT("get some data from unix: %d\n", u32DataLength);
 								void *pData = malloc(u32DataLength);
 								if (pData != NULL)
 								{
@@ -240,6 +291,44 @@ void *ThreadUnixMsg(void *pArg)
 								}
 								break;
 							}
+							case _Unix_Cmd_Uart_Send_Auth:
+							{
+								PRINT("get authentic from unix: %d\n", u32DataLength);
+								if (u32DataLength != 8)
+								{
+									break;
+								}
+								StYNAAuthForOther stAuth;
+								stAuth.s32Serial = s32Serial++;
+								memcpy(stAuth.u8AuthData, pMCS, 8);
+								StMsgStruct stMsg = {0};
+								stMsg.pMsg = YNAMakeASimpleVarialbleCmd(0x0820, &stAuth,
+										sizeof(StYNAAuthForOther), &stMsg.u32LParam);
+
+								if (stMsg.pMsg != NULL)
+								{
+
+									CEchoInfo *pInfo = new CEchoInfo;
+									if (pInfo != NULL)
+									{
+										if (pInfo->Init((uint8_t *)stMsg.pMsg, stMsg.u32LParam,
+												s32Client, s32Serial) < 0)
+										{
+											delete pInfo;
+										}
+										else if (pEchoCntl->InsertAElement(pInfo) < 0)
+										{
+											delete pInfo;
+										}
+										else
+										{
+											boNeedRelease = false;
+										}
+									}
+									free (stMsg.pMsg);
+								}
+								break;
+							}
 							default:
 								break;
 						}
@@ -248,8 +337,6 @@ void *ThreadUnixMsg(void *pArg)
 			        pMCS += u32DataLength;
 
 				}
-
-
 				MCSSyncFree(pMCSStream);
 			}
 			else
@@ -293,7 +380,7 @@ int main(int argc, const char *argv[])
 
 	SignalRegister();
 
-	if ((s32Err = UARTInit(s32FDUart, B115200, 0, 8, 1, 0, 10)) < 0)
+	if ((s32Err = UARTInit(s32FDUart, B115200, 0, 8, 1, 0, 2)) < 0)
 	{
 		PRINT("UARTInit error: 0x%08x\n", s32Err);
 
@@ -306,6 +393,33 @@ int main(int argc, const char *argv[])
 		PRINT("csEchoCntl init error: 0x%08x\n", s32Err);
 		goto end;
 	}
+
+#if 1
+	{
+		StYNAAuthForOther stAuth;
+		stAuth.s32Serial = 555;
+		uint32_t u32CmdLength = 0;
+
+		uint8_t *pMsg = (uint8_t *)YNAMakeASimpleVarialbleCmd(0x8020, &stAuth,
+				sizeof(StYNAAuthForOther), &u32CmdLength);
+		CEchoInfo *pInfo = new CEchoInfo;
+		if (pInfo != NULL)
+		{
+			if (pInfo->Init(pMsg, u32CmdLength, -1, 555) == 0)
+			{
+				csEchoCntl.InsertAElement(pInfo);
+			}
+			else
+			{
+				delete pInfo;
+			}
+		}
+		if (pMsg != NULL)
+		{
+			free(pMsg);
+		}
+	}
+#endif
 
 	stArg.s32FDUart = s32FDUart;
 	stArg.s32MsgId = s32MsgId;
