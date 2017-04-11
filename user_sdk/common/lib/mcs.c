@@ -80,14 +80,15 @@ int32_t MCSOpen(int32_t *pErr)
 }
 
 /*
- * 函数名      : MCSClose
- * 功能        : 销毁MCSOpen返回的句柄中相关资源
- *             必须与MCSOpen成对出现
- * 参数        : s32MCSHandle[in] (int32_t类型): MCSOpen返回的句柄
- * 返回值      : 无
- * 作者        : 许龙杰
+ * 函数名			: MCSClose
+ * 功能			: 销毁MCSOpen返回的句柄中相关资源
+ *   			  必须与MCSOpen成对出现
+ * 参数			: s32MCSHandle[in] (int32_t类型): MCSOpen返回的句柄
+ * 				: boIsReleaseStream [in] (bool类型): 是否释放构建好的流，如果不释放，用户必须使用MCSFree释放该流
+ * 返回值			: 无
+ * 作者			: 许龙杰
  */
-void MCSClose(int32_t s32MCSHandle)
+void MCSCloseNoReleaseStream(int32_t s32MCSHandle, bool boIsReleaseStream)
 {
     StMCS *pMCS = (StMCS *)s32MCSHandle;
     StMCSCmdTag *pCmd;
@@ -118,12 +119,27 @@ void MCSClose(int32_t s32MCSHandle)
         pCmd = pCmd->pNextCmd;
         free(pCmdTmp);
     }
-
-    if(pMCS->pBuf != NULL)
+    if (boIsReleaseStream)
     {
-        free(pMCS->pBuf);
+		if(pMCS->pBuf != NULL)
+		{
+			free(pMCS->pBuf);
+		}
     }
+
     free(pMCS);
+}
+/*
+ * 函数名      : MCSClose
+ * 功能        : 销毁MCSOpen返回的句柄中相关资源
+ *             必须与MCSOpen成对出现
+ * 参数        : s32MCSHandle[in] (int32_t类型): MCSOpen返回的句柄
+ * 返回值      : 无
+ * 作者        : 许龙杰
+ */
+void MCSClose(int32_t s32MCSHandle)
+{
+	MCSCloseNoReleaseStream(s32MCSHandle, true);
 }
 
 
@@ -259,6 +275,46 @@ int32_t MCSInsertACmd(int32_t s32MCSHandle,
     pMCS->stMCSHeader.u32CmdTotalSize += u32RealCmdSize;
 
     return 0;
+}
+
+/*
+ * 函数名		: MCSMakeAnArrayVarialbleCmd
+ * 功能		: 组建一个MCS流, 使用MCSFree 释放该指针
+ * 参数		: u32CmdNum [in]: (uint32_t 类型) 命令号
+ * 			  pData [in]: (void * 类型) 数据
+ * 			  u32CmdCnt [in]: (uint32_t 类型) 数据数量
+ * 			  u32CmdSize [in]: (uint32_t 类型) 单个数组的长度
+ * 			  pCmdLength [out]: (uint32_t * 类型) 组建成功的长度
+ * 返回值		: (void * 类型) 非NULL表示成功，指向数据, 否则表示错误
+ * 作者		: 许龙杰
+ */
+void *MCSMakeAnArrayVarialbleCmd(uint32_t u32CmdNum, void *pData,
+	uint32_t u32CmdCnt, uint32_t u32CmdSize, uint32_t *pCmdLength)
+{
+	int32_t s32Err = 0;
+	void *pMCS;
+	int32_t s32Handle = MCSOpen(&s32Err);
+	if (s32Handle == 0)
+	{
+		return NULL;
+	}
+	s32Err = MCSInsertACmd(s32Handle, u32CmdNum, u32CmdCnt, u32CmdSize, pData, false);
+	if (s32Err != 0)
+	{
+		return NULL;
+	}
+	pMCS = (void *)MCSGetStreamBuf(s32Handle, pCmdLength, &s32Err);
+
+	if (pMCS == NULL)
+	{
+		MCSClose(s32Handle);
+		return NULL;
+	}
+	else
+	{
+		MCSCloseNoReleaseStream(s32Handle, false);
+		return pMCS;
+	}
 }
 
 /*

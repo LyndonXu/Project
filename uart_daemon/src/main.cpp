@@ -4,7 +4,7 @@
  *  Created on: 2017年4月3日
  *      Author: lyndon
  */
-#include "../../uart_daemon/inc/uart_daemon.h"
+#include "uart_daemon.h"
 bool g_boIsExit = false;
 
 

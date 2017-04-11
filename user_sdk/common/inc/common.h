@@ -455,6 +455,17 @@ typedef StSendV StInOut;
 int32_t MCSOpen(int32_t *pErr);
 
 /*
+ * 函数名			: MCSClose
+ * 功能			: 销毁MCSOpen返回的句柄中相关资源
+ *   			  必须与MCSOpen成对出现
+ * 参数			: s32MCSHandle[in] (int32_t类型): MCSOpen返回的句柄
+ * 				: boIsReleaseStream [in] (bool类型): 是否释放构建好的流，如果不释放，用户必须使用MCSFree释放该流
+ * 返回值			: 无
+ * 作者			: 许龙杰
+ */
+void MCSCloseNoReleaseStream(int32_t s32MCSHandle, bool boIsReleaseStream);
+
+/*
  * 函数名      : MCSClose
  * 功能        : 销毁MCSOpen返回的句柄中相关资源
  *             必须与MCSOpen成对出现
@@ -502,6 +513,20 @@ int32_t MCSInsertAMCS(int32_t s32MCSHandle, const char *pMCS, uint32_t u32MCSSiz
  */
 const char *MCSGetStreamBuf(int32_t s32MCSHandle, uint32_t *pSize, int32_t *pErr);
 
+
+/*
+ * 函数名		: MCSMakeAnArrayVarialbleCmd
+ * 功能		: 组建一个MCS流, 使用MCSFree 释放该指针
+ * 参数		: u32CmdNum [in]: (uint32_t 类型) 命令号
+ * 			  pData [in]: (void * 类型) 数据
+ * 			  u32CmdCnt [in]: (uint32_t 类型) 数据数量
+ * 			  u32CmdSize [in]: (uint32_t 类型) 单个数组的长度
+ * 			  pCmdLength [out]: (uint32_t * 类型) 组建成功的长度
+ * 返回值		: (void * 类型) 非NULL表示成功，指向数据, 否则表示错误
+ * 作者		: 许龙杰
+ */
+void *MCSMakeAnArrayVarialbleCmd(uint32_t u32CmdNum, void *pData,
+	uint32_t u32CmdCnt, uint32_t u32CmdSize, uint32_t *pCmdLength);
 /*
  * 函数名      : MCSMalloc
  * 功能        : 得到一些内存
@@ -883,6 +908,18 @@ int32_t GetHostIPV4AddrTimeout(const char *pHost, uint32_t u32Time,
  * 作者        : 许龙杰
  */
 int32_t GetNetLinkStatus(const char *pInterfaceName);
+
+/*
+ * 函数名			: GetHostIPV4AddrTimeout
+ * 功能			: 解析域名或者IPV4的IPV4地址, 可设置超时时间
+ * 参数			: pSocket [in/out] (int32_t * 类型): 指向TCP或者UDP的指针
+ *				: s32SockType [in] (int32_t 类型): 该socket的类型
+ *				: u16Port [in] (uint16_t 类型): 该socket要绑定的端口号
+ *				: pETHName [in] (const char * 类型): 网卡的名称
+ * 返回			: 正确返回0，并在*pSocket中赋予新的socket, 错误返回错误码
+ * 作者			: 许龙杰
+ */
+int32_t RebindToEth(int32_t *pSocket, int32_t s32SockType, uint16_t u16Port, const char *pETHName);
 
 /*
  * 函数名      : TimeGetTime

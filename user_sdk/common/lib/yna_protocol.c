@@ -382,6 +382,17 @@ end:
 	}
 	return pBuf;
 }
+/*
+ * 函数名		: YNAMakeAnArrayVarialbleCmd
+ * 功能			: 组建一个YNA可变长协议
+ * 参数			: u16Cmd [in]: (uint16_t 类型) 命令号
+ * 				  pData [in]: (void * 类型) 数据
+ * 				  u32Count [in]: (uint32_t 类型) 数据数量
+ * 				  u32Length [in]: (uint32_t 类型) 单个数组的长度
+ * 				  pCmdLength [out]: (uint32_t * 类型) 组建成功的长度
+ * 返回值		: (void * 类型) 非NULL表示成功，指向数据, 否则表示错误
+ * 作者			: 许龙杰
+ */
 void *YNAMakeAnArrayVarialbleCmd(uint16_t u16Cmd, void *pData,
 	uint32_t u32Count, uint32_t u32Length, uint32_t *pCmdLength)
 {

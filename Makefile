@@ -4,7 +4,8 @@ ifeq ($(PARAM_FILE), )
 endif
 
 DIRS = user_sdk \
-		uart_daemon
+		uart_daemon \
+		update_daemon
 #		user_sdk \
 #		main_process \
 #		bp_process \

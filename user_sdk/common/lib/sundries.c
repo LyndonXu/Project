@@ -1096,6 +1096,88 @@ int32_t GetHostIPV4AddrTimeout(const char *pHost, uint32_t u32Time,
 	}
 }
 
+/*
+ * 函数名			: GetHostIPV4AddrTimeout
+ * 功能			: 解析域名或者IPV4的IPV4地址, 可设置超时时间
+ * 参数			: pSocket [in/out] (int32_t * 类型): 指向TCP或者UDP的指针
+ *				: s32SockType [in] (int32_t 类型): 该socket的类型
+ *				: u16Port [in] (uint16_t 类型): 该socket要绑定的端口号
+ *				: pETHName [in] (const char * 类型): 网卡的名称
+ * 返回			: 正确返回0，并在*pSocket中赋予新的socket, 错误返回错误码
+ * 作者			: 许龙杰
+ */
+int32_t RebindToEth(int32_t *pSocket, int32_t s32SockType, uint16_t u16Port, const char *pETHName)
+{
+	int32_t s32Socket = -1;
+	int32_t s32Err = 0;
+	struct sockaddr stBindAddr = {0};
+	struct sockaddr_in *pTmpAddr = (struct sockaddr_in *)(&stBindAddr);
+	socklen_t s32Len = sizeof(struct sockaddr);
+
+	if (pSocket == NULL || s32SockType > SOCK_DGRAM || pETHName == NULL)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+
+	s32Socket = *pSocket;
+	if (s32Socket < 0)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+
+	/* get the current address to which the socket socket is bound */
+	s32Err = getsockname(s32Socket, &stBindAddr, &s32Len);
+	if (s32Err != 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+	else
+	{
+		struct in_addr stLocalInternetAddr = {0};
+		StIPV4Addr stIPV4Addr;
+		s32Err = GetInterfaceIPV4Addr(pETHName, &stIPV4Addr);
+		if (s32Err < 0)
+		{
+			PRINT("GetInterfaceIPV4Addr : %08x\n", s32Err);
+			return s32Err;
+		}
+
+		if (inet_aton(stIPV4Addr.c8IPAddr, &stLocalInternetAddr) == 0)
+		{
+			PRINT("client IP address error!\n");
+			return MY_ERR(_Err_SYS + errno);
+		}
+		if (stLocalInternetAddr.s_addr != pTmpAddr->sin_addr.s_addr)
+		{
+			/*
+			 * we find that the address has changed, we should re-bind the socket, but very sorry,
+			 * there is no right system API can finish this directly, so, we close the socket
+			 * and open a new socket, then, bind it
+			 */
+			PRINT("address re-bind to %s\n", stIPV4Addr.c8IPAddr);
+
+			close(s32Socket);
+			s32Socket = socket(AF_INET, s32SockType, 0);
+			*pSocket = s32Socket;
+			if (s32Socket < 0)
+			{
+				PRINT("socket error: %s\n", strerror(errno));
+				return MY_ERR(_Err_SYS + errno);
+			}
+			pTmpAddr->sin_family = AF_INET;
+			pTmpAddr->sin_port = htons(u16Port);
+			pTmpAddr->sin_addr = stLocalInternetAddr;
+			if (bind(s32Socket, &stBindAddr, sizeof(struct sockaddr)))
+			{
+				/* may be the IP address has been changed */
+				PRINT("bind error: %s\n", strerror(errno));
+				return MY_ERR(_Err_SYS + errno);
+			}
+		}
+	}
+
+	return 0;
+}
 
 /*
  * 函数名      : TimeGetTime

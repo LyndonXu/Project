@@ -6,7 +6,7 @@
  */
 
 #include <unistd.h>
-#include "../../uart_daemon/inc/uart_daemon.h"
+#include "uart_daemon.h"
 
 #if 0
 
