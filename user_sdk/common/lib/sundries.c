@@ -467,6 +467,62 @@ int32_t CheckSum(int32_t *pData, uint32_t u32Cnt)
 	return s32CheckSum;
 }
 
+int32_t GetDefaultGateway(char c8Gateway[IPV4_ADDR_LENGTH])
+{
+	FILE *pFile = popen("route", "r");
+	char c8Buf[512];
+	char *pTmp, *pTmp1;
+	int32_t s32Length = 0;
+	int32_t s32ReadCnt = 0;
+	if (pFile == NULL)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+
+	s32ReadCnt = fread(c8Buf, 1, 510, pFile);
+	pclose(pFile);
+	if (s32ReadCnt <= 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+	c8Buf[s32ReadCnt] = 0;
+
+	pTmp = strstr(c8Buf, "default");
+	if (pTmp == NULL)
+	{
+		return -1;
+	}
+
+	pTmp += 7;/* length of string default */
+	while (pTmp[0] != 0 && pTmp[0] < '0')
+	{
+		pTmp++;
+	}
+
+	if (pTmp[0] == 0)
+	{
+		return -1;
+	}
+	pTmp1 = pTmp;
+	while (pTmp[0] != 0 && ((pTmp[0] >= '0' && pTmp[0] <= '9') || pTmp[0] == '.'))
+	{
+		pTmp++;
+	}
+	if (pTmp[0] == 0)
+	{
+		return -1;
+	}
+	s32Length = pTmp - pTmp1;
+
+	if (s32Length >= IPV4_ADDR_LENGTH)
+	{
+		return -1;
+	}
+
+	memcpy(c8Gateway, pTmp1, s32Length);
+	c8Gateway[s32Length] = 0;
+	return 0;
+}
 /*
  * 函数名      : GetInterfaceIPV4Addr
  * 功能        : 得到指定网卡的IPV4信息
@@ -485,6 +541,8 @@ int32_t GetInterfaceIPV4Addr(const char *pInterfaceName, StIPV4Addr *pAddrOut)
 		return MY_ERR(_Err_InvalidParam);
 	}
 
+	memset(pAddrOut, 0, sizeof(StIPV4Addr));
+
 	s32FD = socket(AF_INET, SOCK_DGRAM, 0);
 	if (s32FD < 0)
 	{
@@ -498,23 +556,47 @@ int32_t GetInterfaceIPV4Addr(const char *pInterfaceName, StIPV4Addr *pAddrOut)
 		memcpy(pAddrOut[0].c8MacAddr, stIfreq.ifr_hwaddr.sa_data, 6);
 	}
 	stIfreq.ifr_addr.sa_family = AF_INET;
+	/* IP Address  */
 	if (ioctl(s32FD, SIOCGIFADDR, &stIfreq) == -1)
 	{
 		close(s32FD);
 		return MY_ERR(_Err_SYS + errno);
 	}
-	close(s32FD);
+	else
 	{
-	int32_t s32Rslt = getnameinfo(&stIfreq.ifr_addr, sizeof(struct sockaddr),
-			pAddrOut[0].c8IPAddr, 16, NULL,	0, NI_NUMERICHOST);
-	if (s32Rslt != 0)
+		int32_t s32Rslt = getnameinfo(&stIfreq.ifr_addr, sizeof(struct sockaddr),
+				pAddrOut[0].c8IPAddr, IPV4_ADDR_LENGTH, NULL,	0, NI_NUMERICHOST);
+		if (s32Rslt != 0)
+		{
+			PRINT("getnameinfo error: %s\n", strerror(errno));
+			return MY_ERR(_Err_SYS + errno);
+		}
+	}
+
+	/* netmask  */
+	if (ioctl(s32FD, SIOCGIFNETMASK, &stIfreq) == -1)
 	{
-		PRINT("getnameinfo error: %s\n", strerror(errno));
+		close(s32FD);
 		return MY_ERR(_Err_SYS + errno);
 	}
+	else
+	{
+		int32_t s32Rslt = getnameinfo(&stIfreq.ifr_netmask, sizeof(struct sockaddr),
+				pAddrOut[0].c8Mask, IPV4_ADDR_LENGTH, NULL,	0, NI_NUMERICHOST);
+		if (s32Rslt != 0)
+		{
+			PRINT("getnameinfo error: %s\n", strerror(errno));
+			return MY_ERR(_Err_SYS + errno);
+		}
 	}
+
+	close(s32FD);
+
+	GetDefaultGateway(pAddrOut[0].c8Gateway);
+
 	strncpy(pAddrOut[0].c8Name, pInterfaceName, IPV4_ADDR_LENGTH);
-	PRINT("network :%s address: %s\n", pInterfaceName, pAddrOut[0].c8IPAddr);
+	PRINT("network :%s address: %s netmask: %s gateway: %s\n",
+			pInterfaceName, pAddrOut[0].c8IPAddr, pAddrOut[0].c8Mask, pAddrOut[0].c8Gateway);
 #if defined _DEBUG
 	{
 		uint64_t *pAddr = (uint64_t *)pAddrOut[0].c8MacAddr;
@@ -576,6 +658,7 @@ int32_t GetIPV4Addr(StIPV4Addr *pAddrOut, uint32_t *pCnt)
 	}
 	for (i = 0; i < u32Cnt; i++)
 	{
+#if 0
 		struct ifreq stIfreq;
 		int32_t s32FD;
 		s32FD = socket(AF_INET, SOCK_DGRAM, 0);
@@ -614,6 +697,15 @@ int32_t GetIPV4Addr(StIPV4Addr *pAddrOut, uint32_t *pCnt)
 			PRINT("and hardware address is %016llX\n", *pAddr);
 		}
 #endif
+#else
+		int32_t s32Err = GetInterfaceIPV4Addr(c8NewWork[i], pAddrOut + u32NetworkCnt);
+		if (s32Err < 0)
+		{
+			*pCnt = u32NetworkCnt;
+			return s32Err;
+		}
+
+#endif
 		u32NetworkCnt++;
 		if (u32NetworkCnt >= (*pCnt))
 		{
@@ -622,7 +714,7 @@ int32_t GetIPV4Addr(StIPV4Addr *pAddrOut, uint32_t *pCnt)
 	}
 	*pCnt = u32NetworkCnt;
 	return 0;
-	}
+}
 
 
 #else	/* mips dos't supported */

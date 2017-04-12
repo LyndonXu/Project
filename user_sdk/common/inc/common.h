@@ -388,6 +388,8 @@ void SLOTombDestroy(int32_t s32Handle);
 enum
 {
 	_MCS_Cmd_UartDaemon = 0x00007000,
+	_MCS_Cmd_UpdateDaemon = 0x00008000,
+
 
 	_MCS_Cmd_Echo = 0x08000000,
 };
@@ -852,6 +854,8 @@ typedef struct _tagStIPV4Addr
 {
 	char c8Name[16];								/* 用于保存网卡的名字 */
 	char c8IPAddr[IPV4_ADDR_LENGTH];				/* 用于保存网卡的IP */
+	char c8Mask[IPV4_ADDR_LENGTH];
+	char c8Gateway[IPV4_ADDR_LENGTH];
 	char c8MacAddr[MAC_ADDR_LENGTH];
 }StIPV4Addr;										/* IPV4网卡信息 */
 
