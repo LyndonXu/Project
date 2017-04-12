@@ -227,8 +227,7 @@ void *ThreadUDP(void *pArg)
 	{
 		StIPV4Addr stAddr;
 		GetInterfaceIPV4Addr(INTERFACE_NAME, &stAddr);
-		memcpy(stNetIfConfig.stConfig.c8IPV4, stAddr.c8IPAddr, IPV4_ADDR_LENGTH * 3);
-		memcpy(stNetIfConfig.stConfig.c8MACAddr, stAddr.c8MacAddr, MAC_ADDR_LENGTH);
+		memcpy(stNetIfConfig.stConfig.c8IPV4, stAddr.c8IPAddr, IPV4_ADDR_LENGTH * 5 + MAC_ADDR_LENGTH);
 	}
 
 

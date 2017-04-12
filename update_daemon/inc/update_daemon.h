@@ -40,7 +40,7 @@ extern bool g_boIsExit;
 #if HAS_CREOSS
 #define INTERFACE_NAME	"eth0"
 #else
-#define INTERFACE_NAME	"ens33"
+#define INTERFACE_NAME	"wlp4s0"//"ens33"
 #endif
 
 #define UDP_SERVER_PORT	(('Y'<< 8) | 'A')

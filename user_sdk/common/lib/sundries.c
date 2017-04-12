@@ -523,6 +523,72 @@ int32_t GetDefaultGateway(char c8Gateway[IPV4_ADDR_LENGTH])
 	c8Gateway[s32Length] = 0;
 	return 0;
 }
+
+int32_t GetNDS(	char c8DNS[IPV4_ADDR_LENGTH], char c8ReserveDNS[IPV4_ADDR_LENGTH])
+{
+	FILE *pFile = fopen("/etc/resolv.conf", "r");
+	char c8Buf[512];
+	char *pDNS[2] = {c8DNS, c8ReserveDNS};
+	char *pTmp, *pTmp1, *pTmp2;
+	int32_t s32Length = 0;
+	int32_t s32ReadCnt = 0;
+	int32_t i;
+	if (pFile == NULL)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+
+	s32ReadCnt = fread(c8Buf, 1, 510, pFile);
+	pclose(pFile);
+	if (s32ReadCnt <= 0)
+	{
+		return MY_ERR(_Err_SYS + errno);
+	}
+	c8Buf[s32ReadCnt] = 0;
+	pTmp2 = c8Buf;
+	for (i = 0; i < 2; i++)
+	{
+		memset(pDNS[i], 0, IPV4_ADDR_LENGTH);
+		pTmp = strstr(pTmp2, "nameserver");
+		if (pTmp == NULL)
+		{
+			return -1;
+		}
+
+		pTmp += 10;/* length of string default */
+		while (pTmp[0] != 0 && pTmp[0] < '0')
+		{
+			pTmp++;
+		}
+
+		if (pTmp[0] == 0)
+		{
+			continue;
+		}
+		pTmp1 = pTmp;
+		while (pTmp[0] != 0 && ((pTmp[0] >= '0' && pTmp[0] <= '9') || pTmp[0] == '.'))
+		{
+			pTmp++;
+		}
+		if (pTmp[0] == 0)
+		{
+			continue;
+		}
+		s32Length = pTmp - pTmp1;
+
+		if (s32Length >= IPV4_ADDR_LENGTH)
+		{
+			continue;
+		}
+
+		memcpy(pDNS[i], pTmp1, s32Length);
+		pDNS[i][s32Length] = 0;
+		pTmp2 = pTmp;
+	}
+
+	return 0;
+}
+
 /*
  * 函数名      : GetInterfaceIPV4Addr
  * 功能        : 得到指定网卡的IPV4信息
@@ -594,9 +660,13 @@ int32_t GetInterfaceIPV4Addr(const char *pInterfaceName, StIPV4Addr *pAddrOut)
 
 	GetDefaultGateway(pAddrOut[0].c8Gateway);
 
+	GetNDS(pAddrOut[0].c8DNS, pAddrOut[0].c8ReserveDNS);
+
 	strncpy(pAddrOut[0].c8Name, pInterfaceName, IPV4_ADDR_LENGTH);
-	PRINT("network :%s address: %s netmask: %s gateway: %s\n",
-			pInterfaceName, pAddrOut[0].c8IPAddr, pAddrOut[0].c8Mask, pAddrOut[0].c8Gateway);
+	PRINT("network :%s\naddress: %s\nnetmask: %s\ngateway: %s\n"
+			"DNS: %s\n Reserve DNS: %s\n",
+			pInterfaceName, pAddrOut[0].c8IPAddr, pAddrOut[0].c8Mask, pAddrOut[0].c8Gateway,
+			pAddrOut[0].c8DNS, pAddrOut[0].c8ReserveDNS);
 #if defined _DEBUG
 	{
 		uint64_t *pAddr = (uint64_t *)pAddrOut[0].c8MacAddr;

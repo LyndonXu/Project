@@ -856,6 +856,8 @@ typedef struct _tagStIPV4Addr
 	char c8IPAddr[IPV4_ADDR_LENGTH];				/* 用于保存网卡的IP */
 	char c8Mask[IPV4_ADDR_LENGTH];
 	char c8Gateway[IPV4_ADDR_LENGTH];
+	char c8DNS[IPV4_ADDR_LENGTH];
+	char c8ReserveDNS[IPV4_ADDR_LENGTH];
 	char c8MacAddr[MAC_ADDR_LENGTH];
 }StIPV4Addr;										/* IPV4网卡信息 */
 
