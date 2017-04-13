@@ -154,6 +154,7 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 	uint32_t u32TotalLength = u32CmdCnt * u32CmdSize;
 	uint32_t u32MCDLen = 0;
 	void *pMCS = NULL;
+	bool boNeedReboot = false;
 	PRINT("cmd %d, cnt %d, size %d, %p\n", u32CmdNum, u32CmdCnt, u32CmdSize, pCmdData);
 
 	switch (u32CmdNum)
@@ -189,6 +190,37 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 
 			break;
 		}
+		case _UDP_Cmd_SetMAC:
+		{
+			if (u32TotalLength != sizeof(StHardwareAddr))
+			{
+				pMCS = MCSMakeAnArrayVarialbleCmd(MY_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+			}
+			else
+			{
+				StHardwareAddr *pAddr = (StHardwareAddr *)pCmdData;
+				if(strcmp(pAddr->c8OldMACAddr, pArg->pNetConfigInner->stConfig.c8MACAddr) != 0)
+				{
+					//pMCS = MCSMakeAnArrayVarialbleCmd(MY_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+				}
+				else
+				{
+					char c8Buf[256];
+					sprintf(c8Buf, "mkdir -p %s", PROGRAM_DIR);
+					PRINT("%s", c8Buf);
+					system(c8Buf);
+					sprintf(c8Buf, "echo HWAddr=%s > %s", pAddr->c8NewMACAddr, HW_ARRD_CONFIG);
+					PRINT("%s", c8Buf);
+					system(c8Buf);
+					pMCS = MCSMakeAnArrayVarialbleCmd(_MCS_Cmd_Echo | _UDP_Cmd_SetMAC,
+							NULL, 0, 0, &u32MCDLen);
+#if HAS_CROSS
+					boNeedReboot = true;
+#endif
+				}
+			}
+			break;
+		}
 
 		default:
 			break;
@@ -205,6 +237,10 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 		MCSFree(pMCS);
 	}
 
+	if (boNeedReboot)
+	{
+		system("reboot");
+	}
 	return 0;
 }
 void *ThreadUDP(void *pArg)

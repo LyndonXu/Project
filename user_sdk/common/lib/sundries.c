@@ -619,7 +619,12 @@ int32_t GetInterfaceIPV4Addr(const char *pInterfaceName, StIPV4Addr *pAddrOut)
 	memset(pAddrOut[0].c8MacAddr, 0, MAC_ADDR_LENGTH);
 	if (ioctl(s32FD, SIOCGIFHWADDR, &stIfreq) >= 0)
 	{
-		memcpy(pAddrOut[0].c8MacAddr, stIfreq.ifr_hwaddr.sa_data, 6);
+		int32_t i = 0;
+		for (i = 0; i < 6; i++)
+		{
+			sprintf(pAddrOut[0].c8MacAddr + 3 * i, "%02hhX:", stIfreq.ifr_hwaddr.sa_data[i]);
+		}
+		pAddrOut[0].c8MacAddr[3 * i]= 0;
 	}
 	stIfreq.ifr_addr.sa_family = AF_INET;
 	/* IP Address  */
@@ -663,16 +668,12 @@ int32_t GetInterfaceIPV4Addr(const char *pInterfaceName, StIPV4Addr *pAddrOut)
 	GetNDS(pAddrOut[0].c8DNS, pAddrOut[0].c8ReserveDNS);
 
 	strncpy(pAddrOut[0].c8Name, pInterfaceName, IPV4_ADDR_LENGTH);
-	PRINT("network :%s\naddress: %s\nnetmask: %s\ngateway: %s\n"
-			"DNS: %s\n Reserve DNS: %s\n",
+	PRINT("\nnetwork :%s\naddress: %s\nnetmask: %s\ngateway: %s\n"
+			"DNS: %s\nReserve DNS: %s\n",
 			pInterfaceName, pAddrOut[0].c8IPAddr, pAddrOut[0].c8Mask, pAddrOut[0].c8Gateway,
 			pAddrOut[0].c8DNS, pAddrOut[0].c8ReserveDNS);
-#if defined _DEBUG
-	{
-		uint64_t *pAddr = (uint64_t *)pAddrOut[0].c8MacAddr;
-		PRINT("and hardware address is %016llX\n", *pAddr);
-	}
-#endif
+	PRINT("\nand hardware address is: %s\n", pAddrOut[0].c8MacAddr);
+
 
 	return 0;
 }

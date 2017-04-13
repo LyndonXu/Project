@@ -40,7 +40,7 @@ extern bool g_boIsExit;
 #if HAS_CREOSS
 #define INTERFACE_NAME	"eth0"
 #else
-#define INTERFACE_NAME	"wlp4s0"//"ens33"
+#define INTERFACE_NAME	"ens33"//"wlp4s0"//
 #endif
 
 #define UDP_SERVER_PORT	(('Y'<< 8) | 'A')
@@ -64,16 +64,35 @@ typedef struct _tagStNetIfConfigInner
 	int s32DHCPPid;
 }StNetIfConfigInner;
 
+typedef struct _tagStHardwareAddr
+{
+	char c8OldMACAddr[MAC_ADDR_LENGTH];
+	char c8NewMACAddr[MAC_ADDR_LENGTH];
+}StHardwareAddr;
+
+
 
 enum
 {
 	_UDP_Cmd_GetEthInfo = _MCS_Cmd_UpdateDaemon,
 	_UDP_Cmd_SetEthInfo,
 
+	_UDP_Cmd_SetMAC = _MCS_Cmd_UpdateDaemon + 0x10,
+
 
 	_TCP_Cmd_Updata = _MCS_Cmd_UpdateDaemon + 0x100,
 
 };
+
+#if HAS_CROSS
+#define PROGRAM_DIR		"/opt/program/"
+#else
+#define PROGRAM_DIR		"/home/ubuntu/workspace/nfsboot/program/"
+#endif
+
+#define HW_ARRD_CONFIG	PROGRAM_DIR"HWAddrConfig"
+
+
 
 
 void *ThreadUDP(void *pArg);
