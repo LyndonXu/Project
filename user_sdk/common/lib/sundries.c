@@ -624,7 +624,7 @@ int32_t GetInterfaceIPV4Addr(const char *pInterfaceName, StIPV4Addr *pAddrOut)
 		{
 			sprintf(pAddrOut[0].c8MacAddr + 3 * i, "%02hhX:", stIfreq.ifr_hwaddr.sa_data[i]);
 		}
-		pAddrOut[0].c8MacAddr[3 * i]= 0;
+		pAddrOut[0].c8MacAddr[3 * i - 1]= 0;
 	}
 	stIfreq.ifr_addr.sa_family = AF_INET;
 	/* IP Address  */
