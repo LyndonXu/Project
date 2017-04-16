@@ -763,17 +763,19 @@ int32_t MCSResolve(const char *pMCS, uint32_t u32MCSSize, PFUN_MCS_Resolve_CallB
 
 
 /*
- * 函数名      : MCSSyncReceive
- * 功能        : 以MCS头作为同步头从SOCKET中接收数据, 与 MCSSyncFree成对使用
- * 参数        : s32Socket[in] (int32_t类型): 要接收的SOCKET
- *             : boWantSyncHead [in] (bool类型): 是否希望在数据前端增加同步头
- *             : u32TimeOut[in] (uint32_t类型): 超时时间(ms)
- *             : pSize[out] (uint32_t * 类型): 保存数据的长度
- *             : pErr[out] (int32_t * 类型): 不为NULL时, *pErr中保存错误码
- * 返回值      : int32_t 型数据, 0成功, 否则失败
- * 作者        : 许龙杰
+ * 函数名		: MCSSyncReceiveWithLimit
+ * 功能			: 以MCS头作为同步头从SOCKET中接收数据, 与 MCSSyncFree成对使用, 负载长度不超u32MaxLength
+ * 参数			: s32Socket[in] (int32_t类型): 要接收的SOCKET
+ *				: boWantSyncHead [in] (bool类型): 是否希望在数据前端增加同步头
+ *				： u32MaxLength [in]  (uint32_t): 最大负载长度
+ *				: u32TimeOut[in] (uint32_t类型): 超时时间(ms)
+ *				: pSize[out] (uint32_t * 类型): 保存数据的长度
+ *				: pErr[out] (int32_t * 类型): 不为NULL时, *pErr中保存错误码
+ * 返回值		: int32_t 型数据, 0成功, 否则失败
+ * 作者			: 许龙杰
  */
-void *MCSSyncReceive(int32_t s32Socket, bool boWantSyncHead, uint32_t u32TimeOut, uint32_t *pSize, int32_t *pErr)
+void *MCSSyncReceiveWithLimit(int32_t s32Socket, bool boWantSyncHead,
+		uint32_t u32MaxLength, uint32_t u32TimeOut, uint32_t *pSize, int32_t *pErr)
 {
     void *pMCSStream = NULL;
     char c8MCSHeader[16];
@@ -856,6 +858,24 @@ void *MCSSyncReceive(int32_t s32Socket, bool boWantSyncHead, uint32_t u32TimeOut
         goto end;
     }
 
+    if (u32MaxLength < u32RemainLen)
+    {
+    	char c8Tmp[256];
+        s32RecvLen = 0;
+        while ((int32_t) u32RemainLen > 0)/* 接收数据 */
+        {
+        	uint32_t u32NeedRecv = u32RemainLen > 256 ? 256 : u32RemainLen;
+            s32RecvLen = recv(s32Socket, c8Tmp, u32NeedRecv, 0);
+            if (s32RecvLen <= 0)
+            {
+            	break;
+            }
+            u32RemainLen -= s32RecvLen;
+        }
+        s32Err = MY_ERR(_Err_CmdLen);
+    	goto end;
+    }
+
     u32Size = u32RemainLen;
     if (boWantSyncHead)
     {
@@ -904,6 +924,169 @@ end:
     return pMCSStream;
 }
 
+
+/*
+ * 函数名		: MCSSyncReceiveCmdWithCB
+ * 功能			: 以MCS头作为同步头从SOCKET中接收数据, 比对命令号, 并将数据有效数据回调
+ * 参数			: s32Socket[in] (int32_t类型): 要接收的SOCKET
+ *				：u32WantCmd [in]  (uint32_t): 要接收的命令号
+ *				: u32TimeOut[in] (uint32_t类型): 超时时间(ms)
+ *				: pFun[in] (PFUN_MCSRecvCMDCB * 类型): 回调函数指针
+ *				: pContext[in] (void * 类型): 回调函数上下文指针
+ * 返回值		: int32_t 型数据, 0成功, 否则失败
+ * 作者			: 许龙杰
+ */
+int32_t MCSSyncReceiveCmdWithCB(int32_t s32Socket, uint32_t u32WantCmd, uint32_t u32TimeOut,
+		PFUN_MCSRecvCMDCB pFun, void *pContext)
+{
+    char c8MCSHeader[16];
+    char c8MCSCmdInfo[3 * sizeof(uint32_t)];
+    uint32_t u32Size = 0;
+    uint32_t u32RemainLen = sizeof(c8MCSHeader);
+    int32_t s32RecvLen = 0;
+    char *pTmp = c8MCSHeader;
+    int32_t s32Err = 0;
+
+    fd_set stSet;
+    struct timeval stTimeout;
+    if (s32Socket <= 0)
+    {
+        return MY_ERR(_Err_InvalidParam);
+    }
+
+    stTimeout.tv_sec = u32TimeOut / 1000;
+    stTimeout.tv_usec = (u32TimeOut % 1000) * 1000;
+    FD_ZERO(&stSet);
+    FD_SET(s32Socket, &stSet);
+
+    if (select(s32Socket + 1, &stSet, NULL, NULL, &stTimeout) <= 0)
+    {
+        return MY_ERR(_Err_TimeOut);
+    }
+    /* 设置套接字选项,接收和发送超时时间 */
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+        return MY_ERR(_Err_SYS + errno);
+    }
+
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+        return MY_ERR(_Err_SYS + errno);
+    }
+
+    while (u32RemainLen > 0) /* 接收同步头 */
+    {
+        s32RecvLen = recv(s32Socket, pTmp, u32RemainLen, 0);
+        if (s32RecvLen <= 0)
+        {
+            s32Err = MY_ERR(_Err_SYS + errno);
+            goto end;
+        }
+        u32RemainLen -= s32RecvLen;
+        pTmp += s32RecvLen;
+    }
+
+    s32Err = MCSGetCmdLength(c8MCSHeader, &u32RemainLen); /* 解析负载命令长度 */
+    if (s32Err != 0)
+    {
+        goto end;
+    }
+
+    u32Size = u32RemainLen;
+    if (u32Size < 3 * sizeof(uint32_t))
+    {
+    	s32Err = MY_ERR(_Err_CmdLen);
+        goto end;
+	}
+
+    u32RemainLen = 3 * sizeof(uint32_t);
+    pTmp = c8MCSCmdInfo;
+    while ((int32_t)u32RemainLen > 0) /* 接收同步头 */
+    {
+        s32RecvLen = recv(s32Socket, pTmp, u32RemainLen, 0);
+        if (s32RecvLen <= 0)
+        {
+            s32Err = MY_ERR(_Err_SYS + errno);
+            goto end;
+        }
+        u32RemainLen -= s32RecvLen;
+        pTmp += s32RecvLen;
+    }
+    do
+    {
+		uint32_t u32Cmd, u32Cnt, u32Length;
+		char *pData = c8MCSCmdInfo;
+		/* command */
+		LittleAndBigEndianTransfer((char *)(&u32Cmd), (const char *)pData, sizeof(uint32_t));
+		pData += sizeof(uint32_t);
+		/* count */
+		LittleAndBigEndianTransfer((char *)(&u32Cnt), (const char *)pData, sizeof(uint32_t));
+		pData += sizeof(uint32_t);
+		/* length */
+		LittleAndBigEndianTransfer((char *)(&u32Length), (const char *)pData, sizeof(uint32_t));
+		pData += sizeof(uint32_t);
+		if (u32Cmd != u32WantCmd)
+		{
+            s32Err = MY_ERR(_Err_CmdType);
+            goto end;
+		}
+		if (u32Size - 3 * sizeof(uint32_t) != u32Length)
+		{
+            s32Err = MY_ERR(_Err_CmdLen);
+            goto end;
+		}
+		u32Size = u32Length;
+    } while (0);
+
+    do
+    {
+    	pTmp = (char *)malloc(4096);
+    	if (pTmp == NULL)
+    	{
+    		s32Err = MY_ERR(_Err_Mem);
+    		goto end;
+    	}
+		s32RecvLen = 0;
+		u32RemainLen = u32Size;
+		while ((int32_t) u32RemainLen > 0)/* 接收数据 */
+		{
+			uint32_t u32NeedRecv = u32RemainLen > 4096 ? 4096 : u32RemainLen;
+			s32RecvLen = recv(s32Socket, pTmp, u32NeedRecv, 0);
+			if (s32RecvLen <= 0)
+			{
+				s32Err = MY_ERR(_Err_SYS + errno);
+				break;
+			}
+			u32RemainLen -= s32RecvLen;
+			if (pFun != NULL)
+			{
+				pFun(pTmp, s32RecvLen, pContext);
+			}
+		}
+		free(pTmp);
+
+    } while(0);
+
+end:
+    return s32Err;
+}
+
+/*
+ * 函数名      : MCSSyncReceive
+ * 功能        : 以MCS头作为同步头从SOCKET中接收数据, 与 MCSSyncFree成对使用
+ * 参数        : s32Socket[in] (int32_t类型): 要接收的SOCKET
+ *             : boWantSyncHead [in] (bool类型): 是否希望在数据前端增加同步头
+ *             : u32TimeOut[in] (uint32_t类型): 超时时间(ms)
+ *             : pSize[out] (uint32_t * 类型): 保存数据的长度
+ *             : pErr[out] (int32_t * 类型): 不为NULL时, *pErr中保存错误码
+ * 返回值      : int32_t 型数据, 0成功, 否则失败
+ * 作者        : 许龙杰
+ */
+void *MCSSyncReceive(int32_t s32Socket, bool boWantSyncHead,
+		uint32_t u32TimeOut, uint32_t *pSize, int32_t *pErr)
+{
+	return MCSSyncReceiveWithLimit(s32Socket, boWantSyncHead, ~0, u32TimeOut, pSize, pErr);
+}
 /*
  * 函数名      : MCSSyncFree
  * 功能        : 释放数据, 与 MCSSyncReceive成对使用

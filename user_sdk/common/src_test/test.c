@@ -80,9 +80,108 @@ void SignalRegister(void)
 //#define ADD_LINE_NUMBER
 //#define GETADDRINFO_TEST
 //#define MINE_TEST
-#define UART_TEST
+//#define UART_TEST
+#define CMD_WITH_CB
 
-#if defined UART_TEST
+#if defined CMD_WITH_CB
+#define UNIX_TEST		"/tmp/CMD_WITH_CB.socket"
+#define SEND_FILE		"/home/lyndon/workspace/config"
+#define WRITE_FILE		"test_recv.text"
+char c8Buf[1 * 1024 * 1024];
+
+int32_t WriteFileCB(void *pData, uint32_t u32Len, void *pContext)
+{
+	FILE *pFile = fopen(WRITE_FILE, "ab+");
+	if (pFile != NULL)
+	{
+		fwrite(pData, 1, u32Len, pFile);
+		fclose(pFile);
+	}
+
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	SignalRegister();
+	/* client */
+	if (argc > 1)
+	{
+		int32_t s32Client = -1;
+		int32_t s32SendSize = 0;
+		int32_t s32Err = 0;
+		FILE *pFile;
+		s32Client = ClientConnect(UNIX_TEST);
+		if(s32Client < 0)
+		{
+			PRINT("ClientConnect error: 0x%08x\n", s32Client);
+			exit(-1);
+		}
+
+		pFile = fopen(SEND_FILE, "rb");
+		if (pFile != NULL)
+		{
+			s32SendSize = fread(c8Buf, 1, 1 * 1024 * 1024, pFile);
+			fclose(pFile);
+		}
+
+
+		s32Err = MCSSyncSend(s32Client, 2000, 12345, s32SendSize, c8Buf);
+		if (s32Err != 0)
+		{
+			PRINT("MCSSyncSendData error: 0x%08x\n", s32Err);
+		}
+		close(s32Client);
+
+	}
+	else /* server */
+	{
+		int32_t s32Err = 0;
+		int32_t s32Server = ServerListen(UNIX_TEST);
+
+		if (s32Server < 0)
+		{
+			PRINT("ServerListen error: 0x%08x\n", s32Server);
+			exit(-1);
+		}
+		while (!g_boIsExit)
+		{
+			fd_set stSet;
+			struct timeval stTimeout;
+			int32_t s32Client = -1;
+
+			stTimeout.tv_sec = 1;
+			stTimeout.tv_usec = 0;
+			FD_ZERO(&stSet);
+			FD_SET(s32Server, &stSet);
+
+			if (select(s32Server + 1, &stSet, NULL, NULL, &stTimeout) <= 0)
+			{
+				continue;
+			}
+			if (!FD_ISSET(s32Server, &stSet))
+			{
+				continue;
+			}
+			s32Client = ServerAccept(s32Server);
+
+			if(s32Client < 0)
+			{
+				PRINT("ServerAccept error: 0x%08x\n", s32Client);
+				ServerRemove(s32Server, UNIX_TEST);
+				exit(-1);
+			}
+			s32Err = MCSSyncReceiveCmdWithCB(s32Client, 1234, 5000,
+					WriteFileCB, NULL);
+			PRINT("MCSSyncReceiveCmdWithCB error: 0x%08x\n", s32Err);
+			close(s32Client);
+		}
+		ServerRemove(s32Server, UNIX_TEST);
+	}
+	return 0;
+}
+
+#elif defined UART_TEST
 
 #include <termios.h>
 

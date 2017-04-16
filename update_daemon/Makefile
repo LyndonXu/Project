@@ -78,7 +78,7 @@ LIBDIR += -L $(INSTALL_DIR)
 
 
 LIBS = $(LIBDIR) -lcommon
-LIBS += -lpthread
+LIBS += -lpthread -ljson-c
 
 
 ifeq ($(FILETYPE), cpp) 

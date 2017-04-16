@@ -6,6 +6,7 @@
  */
 
 #include "update_daemon.h"
+#include "json/json.h"
 
 #define UDP_MSG_BUF_LEN	2048
 static uint8_t *s_pUDPBuf[UDP_MSG_BUF_LEN];
@@ -138,6 +139,118 @@ void SetNetInterface(const char *pInterface, StNetIfConfigInner *pConfigInner)
 }
 
 
+/* get the interface configure from json */
+static void LoadNetInterface(json_object *pSonObj, StNetInterfaceConfig *pStruct)
+{
+	json_object *pTmp = json_object_object_get(pSonObj, "DHCP");
+	if (pTmp != NULL)
+	{
+		pStruct->boIsDHCP = json_object_get_int(pTmp);
+	}
+	if (!pStruct->boIsDHCP)
+	{
+		pTmp = json_object_object_get(pSonObj, "IPAddress");
+		if (pTmp != NULL)
+		{
+			strncpy(pStruct->c8IPV4, json_object_get_string(pTmp), IPV4_ADDR_LENGTH - 1);
+		}
+		pTmp = json_object_object_get(pSonObj, "Mask");
+		if (pTmp != NULL)
+		{
+			strncpy(pStruct->c8Mask, json_object_get_string(pTmp), IPV4_ADDR_LENGTH - 1);
+		}
+		pTmp = json_object_object_get(pSonObj, "Gateway");
+		if (pTmp != NULL)
+		{
+			strncpy(pStruct->c8Gateway, json_object_get_string(pTmp), IPV4_ADDR_LENGTH - 1);
+		}
+		pTmp = json_object_object_get(pSonObj, "DNS");
+		if (pTmp != NULL)
+		{
+			strncpy(pStruct->c8DNS, json_object_get_string(pTmp), IPV4_ADDR_LENGTH - 1);
+		}
+		pTmp = json_object_object_get(pSonObj, "ReserveDNS");
+		if (pTmp != NULL)
+		{
+			strncpy(pStruct->c8ReserveDNS, json_object_get_string(pTmp), IPV4_ADDR_LENGTH - 1);
+		}
+	}
+}
+
+/* get configure from configure file */
+int32_t LoadConfingFile(StNetInterfaceConfig *pConfig)
+{
+	json_object *pObj = NULL;
+	if (pConfig == NULL)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+
+	pObj = json_object_from_file(ETH_ADDR_CONFIG);
+	if (pObj == NULL)
+	{
+		return MY_ERR(_Err_JSON);
+	}
+	PRINT("\n%s\n", json_object_to_json_string_ext(pObj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+	do
+	{
+		json_object *pSonObj = NULL;
+		pSonObj = json_object_object_get(pObj, "Ethernet");
+		if (pSonObj == NULL)
+		{
+			break;
+		}
+		LoadNetInterface(pSonObj, pConfig);
+
+	}while(0);
+
+	json_object_put(pObj);
+	return 0;
+}
+
+/* save structure to json */
+static void JsonAddInterfaceConfig(json_object *pObj, StNetInterfaceConfig *pConfig)
+{
+	json_object_object_add(pObj, "DHCP", json_object_new_int(pConfig->boIsDHCP));
+	json_object_object_add(pObj, "IPAddress", json_object_new_string(pConfig->c8IPV4));
+	json_object_object_add(pObj, "Mask", json_object_new_string(pConfig->c8Mask));
+	json_object_object_add(pObj, "Gateway", json_object_new_string(pConfig->c8Gateway));
+	json_object_object_add(pObj, "DNS", json_object_new_string(pConfig->c8DNS));
+	json_object_object_add(pObj, "ReserveDNS", json_object_new_string(pConfig->c8ReserveDNS));
+}
+
+/* save structure to configure file */
+int32_t SaveConfingFile(StNetInterfaceConfig *pConfig)
+{
+	int32_t s32Err = 0;
+	json_object *pObj = NULL, *pSonObj = NULL;
+	if (pConfig == NULL)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+	pObj = json_object_new_object();
+	if (pObj == NULL)
+	{
+		return MY_ERR(_Err_Mem);
+	}
+
+	pSonObj = json_object_new_object();
+	if (pObj == NULL)
+	{
+		s32Err = MY_ERR(_Err_Mem);
+		goto end;
+	}
+
+	JsonAddInterfaceConfig(pSonObj, pConfig);
+	json_object_object_add(pObj, "Ethernet", pSonObj);
+
+	json_object_to_file_ext((char *)ETH_ADDR_CONFIG, pObj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+
+end:
+	json_object_put(pObj);
+	return s32Err;
+}
+
 typedef struct _tagStMCSCBArg
 {
 	int32_t s32Socket;
@@ -175,8 +288,9 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 			else
 			{
 #if HAS_CROSS
-				SetNetInterface(INTERFACE_NAME, &stNetIfConfig);
+				SetNetInterface(INTERFACE_NAME, pArg->pNetConfigInner);
 #endif
+				SaveConfingFile(&(pArg->pNetConfigInner->stConfig));
 				/* get current information */
 				{
 					StIPV4Addr stAddr;
@@ -209,7 +323,7 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 					sprintf(c8Buf, "mkdir -p %s", PROGRAM_DIR);
 					PRINT("%s", c8Buf);
 					system(c8Buf);
-					sprintf(c8Buf, "echo HWAddr=%s > %s", pAddr->c8NewMACAddr, HW_ARRD_CONFIG);
+					sprintf(c8Buf, "echo HWAddr=%s > %s", pAddr->c8NewMACAddr, HW_ADDR_CONFIG);
 					PRINT("%s", c8Buf);
 					system(c8Buf);
 					pMCS = MCSMakeAnArrayVarialbleCmd(_MCS_Cmd_Echo | _UDP_Cmd_SetMAC,
@@ -243,6 +357,9 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 	}
 	return 0;
 }
+
+
+
 void *ThreadUDP(void *pArg)
 {
 	int32_t s32Socket = -1;
@@ -250,11 +367,17 @@ void *ThreadUDP(void *pArg)
 
 	StMCSCBArg stMCSCBArg;
 
-	StNetIfConfigInner stNetIfConfig;
+	StNetIfConfigInner stNetIfConfig = { 0 };
 
-	/*
-	 * load the configure
-	 * */
+	stNetIfConfig.stConfig.boIsDHCP = true;
+	/* load the configure */
+
+	s32Err = LoadConfingFile(&stNetIfConfig.stConfig);
+	if (s32Err != 0)
+	{
+		SaveConfingFile(&stNetIfConfig.stConfig);
+	}
+
 
 #if HAS_CROSS
 	SetNetInterface(INTERFACE_NAME, &stNetIfConfig);

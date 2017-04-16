@@ -120,6 +120,13 @@ enum
 #else
 #define WORK_DIR							"/tmp/workdir/"
 #endif
+
+
+#define UDP_SERVER_PORT				(('Y'<< 8) | 'A')
+#define TCP_UPDATE_SERVER_PORT		UDP_SERVER_PORT + 1
+#define TCP_CMD_SERVER_PORT			UDP_SERVER_PORT + 2
+
+
 /*
  * 函数名      : MakeASpecialKey
  * 功能        : 创建一个IPC key
@@ -592,7 +599,36 @@ int32_t MCSGetCmdCnt(const char *pMCS, uint32_t *pMCSCmdCnt);
  */
 int32_t MCSResolve(const char *pMCS, uint32_t u32MCSSize, PFUN_MCS_Resolve_CallBack pFunCallBack, void *pContext);
 
+/*
+ * 函数名		: MCSSyncReceiveWithLimit
+ * 功能			: 以MCS头作为同步头从SOCKET中接收数据, 与 MCSSyncFree成对使用, 负载长度不超u32MaxLength
+ * 参数			: s32Socket[in] (int32_t类型): 要接收的SOCKET
+ *				: boWantSyncHead [in] (bool类型): 是否希望在数据前端增加同步头
+ *				：u32MaxLength [in]  (uint32_t): 最大负载长度
+ *				: u32TimeOut[in] (uint32_t类型): 超时时间(ms)
+ *				: pSize[out] (uint32_t * 类型): 保存数据的长度
+ *				: pErr[out] (int32_t * 类型): 不为NULL时, *pErr中保存错误码
+ * 返回值		: int32_t 型数据, 0成功, 否则失败
+ * 作者			: 许龙杰
+ */
+void *MCSSyncReceiveWithLimit(int32_t s32Socket, bool boWantSyncHead,
+		uint32_t u32MaxLength, uint32_t u32TimeOut, uint32_t *pSize, int32_t *pErr);
 
+typedef int32_t (*PFUN_MCSRecvCMDCB)(void *pData, uint32_t u32Length, void *pContext);
+
+/*
+ * 函数名		: MCSSyncReceiveCmdWithCB
+ * 功能			: 以MCS头作为同步头从SOCKET中接收数据, 比对命令号, 并将数据有效数据回调
+ * 参数			: s32Socket[in] (int32_t类型): 要接收的SOCKET
+ *				：u32WantCmd [in]  (uint32_t): 要接收的命令号
+ *				: u32TimeOut[in] (uint32_t类型): 超时时间(ms)
+ *				: pFun[in] (PFUN_MCSRecvCMDCB * 类型): 回调函数指针
+ *				: pContext[in] (void * 类型): 回调函数上下文指针
+ * 返回值		: int32_t 型数据, 0成功, 否则失败
+ * 作者			: 许龙杰
+ */
+int32_t MCSSyncReceiveCmdWithCB(int32_t s32Socket, uint32_t u32WantCmd, uint32_t u32TimeOut,
+		PFUN_MCSRecvCMDCB pFun, void *pContext);
 /*
  * 函数名      : MCSSyncReceive
  * 功能        : 以MCS头作为同步头从SOCKET中接收数据, 与 MCSSyncFree成对使用
@@ -818,6 +854,13 @@ typedef int32_t (*PFUN_TraversalDir_Callback)(const char *pCurPath, struct diren
 int32_t TraversalDir(const char *pPathName, bool boIsRecursion,
 		PFUN_TraversalDir_Callback pFunCallback, void *pContext);
 
+
+
+typedef union _tagUnBteaKey
+{
+	int32_t s32Key[4];
+	char c8Key[16];
+}UnBteaKey;
 
 /*
  * 函数名      : btea
