@@ -279,22 +279,6 @@ int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 	return s32Err;
 }
 
-const UnBteaKey c_unUpdateKey[_Update_Mode_Reserved] =
-{
-	{.c8Key = "update mode exe"},
-	{.c8Key = "mode gui config"},
-	{.c8Key = "mode driver****"},
-	{.c8Key = "mode thirdpaty*"},
-};
-
-const char *c_pUpdateDir[_Update_Mode_Reserved] =
-{
-	EXE_DIR,
-	GUI_CONFIG_DIR,
-	DRIVER_DIR,
-	THIRD_PARTY_DIR,
-};
-
 int32_t WriteFileCB(void *pData, uint32_t u32Len, void *pContext)
 {
 	return fwrite(pData, 1, u32Len, (FILE *)pContext);
