@@ -57,7 +57,7 @@ typedef struct _tagStCheckVersionArg
 int32_t GetAllFileOrDirAndDelNotRight(const char *pCurPath, struct dirent *pInfo, void *pContext)
 {
 	StCheckVersionArg *pArg = (StCheckVersionArg *)pContext;
-	if ((pInfo->d_type & DT_DIR) != 0)
+	if ((pInfo->d_type & DT_DIR) == 0)	/* directory */
 	{
 		if (strcmp(pInfo->d_name, VERSION_LIST_FILE) != 0)
 		{
@@ -96,7 +96,7 @@ int32_t GetAllFileOrDirAndDelNotRight(const char *pCurPath, struct dirent *pInfo
 	return 0;
 }
 
-const char *pVerFlagName[] =
+const char *c_pVerFlagName[] =
 {
 	"Cur",
 	"Prev",
@@ -108,6 +108,70 @@ const char *pVerFlagName[] =
 int32_t SaveReservedVersion(const char *pJsonFile,
 		list<StReservedVersionAttr> &csReservedVersion)
 {
+	int32_t s32Err = 0;
+	json_object *pObj = NULL, *pSonObj = NULL;
+	if (pJsonFile == NULL)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+	pObj = json_object_new_object();
+	if (pObj == NULL)
+	{
+		return MY_ERR(_Err_Mem);
+	}
+
+	pSonObj = json_object_new_object();
+	if (pObj == NULL)
+	{
+		s32Err = MY_ERR(_Err_Mem);
+		goto end;
+	}
+
+	do
+	{
+		list<StReservedVersionAttr>::iterator iter;
+		for (iter = csReservedVersion.begin(); iter != csReservedVersion.end(); iter++)
+		{
+			if (iter->s32Version > (-MAX_RESERVED_VERSION_CNT) && iter->s32Version <= 0)
+			{
+				json_object_object_add(pSonObj, c_pVerFlagName[0 - iter->s32Version],
+						json_object_new_string(iter->csName.c_str()));
+			}
+		}
+	} while (0);
+
+	json_object_object_add(pObj, "Version", pSonObj);
+
+	json_object_to_file_ext((char *)pJsonFile, pObj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY);
+
+end:
+	PRINT("\n%s\n", json_object_to_json_string_ext(pObj, JSON_C_TO_STRING_SPACED |
+			JSON_C_TO_STRING_PRETTY));
+
+	json_object_put(pObj);
+	return s32Err;
+}
+
+
+int32_t ReservedVersionAttrUpdate(list<StReservedVersionAttr> &csReservedVersion,
+		const char *pNewVersion)
+{
+	StReservedVersionAttr stVersion;
+	list<StReservedVersionAttr>::iterator iter = csReservedVersion.begin();
+	stVersion.csName = pNewVersion;
+	stVersion.s32Version = 0;
+	while (iter != csReservedVersion.end())
+	{
+		list<StReservedVersionAttr>::iterator iterNext = iter;
+		iterNext++;
+		iter->s32Version--;
+		if (iter->s32Version <= (-MAX_RESERVED_VERSION_CNT))
+		{
+			csReservedVersion.erase(iter);
+		}
+		iter = iterNext;
+	}
+	csReservedVersion.push_back(stVersion);
 	return 0;
 }
 
@@ -125,7 +189,9 @@ int32_t ParseReservedVersion(const char *pJsonFile,
 	pObj = json_object_from_file(pJsonFile);
 	if (pObj == NULL)
 	{
-		return MY_ERR(_Err_JSON);
+		/* create it */
+		ReservedVersionAttrUpdate(csReservedVersion, csCurVersion.c_str());
+		return SaveReservedVersion(pJsonFile, csReservedVersion);
 	}
 	PRINT("\n%s\n", json_object_to_json_string_ext(pObj, JSON_C_TO_STRING_SPACED |
 			JSON_C_TO_STRING_PRETTY));
@@ -141,7 +207,7 @@ int32_t ParseReservedVersion(const char *pJsonFile,
 
 		for(i = 0; i < MAX_RESERVED_VERSION_CNT; i++)
 		{
-			json_object *pTmp = json_object_object_get(pVersionObj, pVerFlagName[i]);
+			json_object *pTmp = json_object_object_get(pVersionObj, c_pVerFlagName[i]);
 			if (pTmp != NULL)
 			{
 				StReservedVersionAttr stVersion;
@@ -162,28 +228,30 @@ int32_t ParseReservedVersion(const char *pJsonFile,
 	/* if the current version is not in record, rebuild the configure file */
 	if (csCurVersion.length() != 0  && csCurVerInRecord != csCurVersion)
 	{
-		StReservedVersionAttr stVersion;
-		list<StReservedVersionAttr>::iterator iter;
-		stVersion.csName = csCurVersion;
-		stVersion.s32Version = 0;
-		while (iter != csReservedVersion.end())
-		{
-			list<StReservedVersionAttr>::iterator iterNext = iter;
-			iterNext++;
-			iter->s32Version--;
-			if (iter->s32Version <= (-MAX_RESERVED_VERSION_CNT))
-			{
-				csReservedVersion.erase(iter);
-			}
-			iter = iterNext;
-		}
-		csReservedVersion.push_back(stVersion);
+		ReservedVersionAttrUpdate(csReservedVersion, csCurVersion.c_str());
 		SaveReservedVersion(pJsonFile, csReservedVersion);
 	}
 
 	json_object_put(pObj);
 	return 0;
 }
+
+/*
+ * 1, check whether the link name and directory are matching
+ *
+ * 2, get record version from json configure file
+ * 2.1, get the version
+ * 2.2, check whether the link and the current version in json are same
+ * 2.2.1 if not same, change the current version into configure file
+ *
+ * 3, get all directory name in pDir, and delete the file which is not configure file
+ *
+ * 4, check whether only one directory is not recorded in configure file, if not delete and return
+ *
+ * 5, if it is needed to link the new directory, link it and save configure
+ *
+ *
+ * */
 
 int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 {
@@ -243,9 +311,9 @@ int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 		}
 
 		/* maybe some error happened */
-		if ((s32NotFlagDirCnt > 2) || (!boAutoLink))
+		if ((s32NotFlagDirCnt >= 2) || (!boAutoLink))
 		{
-			if (s32NotFlagDirCnt > 2)
+			if (s32NotFlagDirCnt >= 2)
 			{
 				PRINT("too more not flagged directory\n");
 			}
@@ -271,10 +339,35 @@ int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 		}
 	} while (0);
 
-	if (boAutoLink)
+	do
 	{
+		list<StVersionDirAttr>::iterator iter;
+		for (iter = csAllDir.begin(); iter != csAllDir.end(); iter++)
+		{
+			if (!iter->boIsInVersionList)
+			{
+				break;
+			}
+		}
+		if (boAutoLink)
+		{
+			sprintf(c8Str, "ln -s -f -T %s/%s  %s", pDir, iter->csName.c_str(), pLink);
+			PRINT("link new version %s\n", c8Str);
+			system(c8Str);
 
-	}
+			ReservedVersionAttrUpdate(csReservedVersion, iter->csName.c_str());
+
+			sprintf(c8Str, "%s/%s", pDir, VERSION_LIST_FILE);
+			SaveReservedVersion(c8Str, csReservedVersion);
+			CheckVersion(pLink, pDir, false);
+		}
+		else
+		{
+			sprintf(c8Str, "rm -rf %s/%s", pDir, iter->csName.c_str());
+			PRINT("%s\n", c8Str);
+			system(c8Str);
+		}
+	} while (0);
 
 	return s32Err;
 }

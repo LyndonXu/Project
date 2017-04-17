@@ -1,8 +1,8 @@
-#CUR_DIR = ../../
-#ifeq ($(PARAM_FILE), ) 
-#    PARAM_FILE:=$(CUR_DIR)Makefile.param
-#    include $(PARAM_FILE)
-#endif
+CUR_DIR = ../
+ifeq ($(PARAM_FILE), ) 
+    PARAM_FILE:=$(CUR_DIR)Makefile.param
+    include $(PARAM_FILE)
+endif
 
 DEBUG ?= 1
 
@@ -51,6 +51,13 @@ CDEF += -DHAS_CROSS=0
 else
 CDEF += -DHAS_CROSS=1
 endif
+
+ifeq ($(PLANT_FROM), UBUNTU)
+CDEF += -DUBUNTU
+else
+CDEF += -DFEDORA
+endif
+
 
 ifeq ($(CROSS), )
 ifeq ($(DEBUG), 1)

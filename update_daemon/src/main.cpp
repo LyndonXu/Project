@@ -25,6 +25,16 @@ void SignalRegister(void)
 
 int main(int argc, char * const argv[])
 {
+	int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink);
+	if (argc > 1)
+	{
+		return CheckVersion(LINK_DRIVER_DIR, DRIVER_DIR, true);
+	}
+	else
+	{
+		return CheckVersion(LINK_DRIVER_DIR, DRIVER_DIR, false);
+	}
+
 	int32_t s32Err = 0;
 	pthread_t s32ThreadUDP = -1;
 

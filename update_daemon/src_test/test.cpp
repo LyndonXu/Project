@@ -7,7 +7,16 @@
 
 #include <unistd.h>
 #include "update_daemon.h"
+//#define SERCHER_TEST
+//#define CHEKCK_VERSION
 
+#if defined CHEKCK_VERSION
+int main()
+{
+	int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink);
+	return CheckVersion(NULL, NULL, false);
+}
+#elif defined SERCHER_TEST
 char c8Buf[4096];
 
 int main(int argc, char * const argv[])
@@ -157,3 +166,11 @@ int main(int argc, char * const argv[])
 	return 0;
 
 }
+
+#else
+int main()
+{
+	printf("test ok!\n");
+	return 0;
+}
+#endif

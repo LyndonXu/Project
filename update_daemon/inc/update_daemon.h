@@ -31,14 +31,24 @@
 #include "common.h"
 
 
-
 extern bool g_boIsExit;
 
+#ifdef UBUNTU
+//#warning "ubuntu platform"
+#else
+//#warning "fedroa platform"
+#endif
 
 #if HAS_CREOSS
 #define INTERFACE_NAME	"eth0"
 #else
+
+#ifdef UBUNTU
+#define INTERFACE_NAME	"ens33"//
+#else
 #define INTERFACE_NAME	"wlp4s0"//"ens33"//
+#endif
+
 #endif
 
 typedef struct _tagStNetInterfaceConfig
@@ -104,8 +114,14 @@ enum
 #define PROGRAM_DIR		"/opt/program/"
 #define LINK_DIR		"/opt/"
 #else
+
+#ifdef UBUNTU
+#define PROGRAM_DIR		"/home/ubuntu/workspace/nfsboot/program/"
+#define LINK_DIR		"/home/ubuntu/workspace/nfsboot/"
+#else
 #define PROGRAM_DIR		"/home/lyndon/workspace/nfsboot/program/"
 #define LINK_DIR		"/home/lyndon/workspace/nfsboot/"
+#endif
 #endif
 
 #define HW_ADDR_CONFIG			PROGRAM_DIR"HWAddrConfig"

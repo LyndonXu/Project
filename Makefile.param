@@ -9,3 +9,4 @@ export HOST_TYPE := arm-hisiv300-linux
 #export CROSS = $(HOST_TYPE)-
 export CC = $(CROSS)gcc
 export CXX = $(CROSS)g++
+export PLANT_FROM := UBUNTU
