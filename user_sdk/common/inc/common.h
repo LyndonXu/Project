@@ -662,8 +662,36 @@ void MCSSyncFree(void *pData);
  * 返回值      : int32_t 型数据, 0成功, 否则失败
  * 作者        : 许龙杰
  */
-int32_t MCSSyncSend(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32CommandNum, uint32_t u32Size, const void *pData);
+int32_t MCSSyncSend(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32CommandNum,
+		uint32_t u32Size, const void *pData);
 
+/*
+ * 函数名      : MCSSyncSendArr
+ * 功能        : 以MCS头作为同步头向SOCKET中发送一组命令数据
+ * 参数        : s32Socket[in] (int32_t类型): 要放送到的SOCKET
+ *             : u32TimeOut[in] (uint32_t类型): 超时(ms)
+ *             : u32CommandNum[in] (uint32_t 类型): 数据对应的命令号(根据情况可以添0)
+ *             : u32Cnt[in] (uint32_t 类型): 数组数量
+ *             : u32ElementSize[in] (uint32_t 类型): 数组一个元素的大小
+ *             : pData[in] (const void * 类型): 数组数据
+ * 返回值      : int32_t 型数据, 0成功, 否则失败
+ * 作者        : 许龙杰
+ */
+int32_t MCSSyncSendArr(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32CommandNum,
+		uint32_t u32Cnt, uint32_t u32ElementSize, const void *pData);
+
+/*
+ * 函数名      : MCSSyncSendFile
+ * 功能        : 以MCS头作为同步头向SOCKET中发送文件数据
+ * 参数        : s32Socket[in] (int32_t类型): 要放送到的SOCKET
+ *             : u32TimeOut[in] (uint32_t类型): 超时(ms)
+ *             : u32CommandNum[in] (uint32_t 类型): 数据对应的命令号(根据情况可以添0)
+ *             : pFileName[in] (const char * 类型): 要发送文件的名称
+ * 返回值      : int32_t 型数据, 0成功, 否则失败
+ * 作者        : 许龙杰
+ */
+int32_t MCSSyncSendFile(int32_t s32Socket,  uint32_t u32TimeOut,
+		uint32_t u32CommandNum, const char *pFileName);
 /*
  * 函数名      : MCSSyncSendData
  * 功能        : 以MCS头作为同步头向SOCKET中发送数据

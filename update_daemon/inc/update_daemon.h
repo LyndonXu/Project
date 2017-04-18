@@ -94,6 +94,18 @@ typedef struct _tagStUpdateMode
 	uint8_t u8RandCode[16];
 }StUpdateMode;
 
+typedef struct _tagStUpdateVersion
+{
+	char c8Name[256];
+	int32_t s32Version;
+}StUpdateVersion;
+
+typedef struct _tagStRollBack
+{
+	StUpdateMode stMode;
+	StUpdateVersion stVersion;
+}StRollBack;
+
 enum
 {
 	_UDP_Cmd_GetEthInfo = _MCS_Cmd_UpdateDaemon,
@@ -103,11 +115,13 @@ enum
 
 
 	_TCP_Cmd_Update = _MCS_Cmd_UpdateDaemon + 0x100,
-	_TCP_Cmd_Update_Mode = _TCP_Cmd_Update,		/*  */
-	_TCP_Cmd_Update_Name,
-	_TCP_Cmd_Update_File,
+	_TCP_Cmd_Update_Mode = _TCP_Cmd_Update,		/* StUpdateMode, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_Mode with no data */
+	_TCP_Cmd_Update_Name,						/* strlen(name) + 1, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_Name with no data */
+	_TCP_Cmd_Update_File,						/* length of the update file, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_File with no data */
 
-	_TCP_Cmd_Update_GetVersion,
+	_TCP_Cmd_Update_GetVersion,					/* StUpdateMode, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_GetVersion with StUpdateVersion * N */
+	_TCP_Cmd_Update_RollBack,					/* StRollBack */
+
 };
 
 #if HAS_CROSS
@@ -141,5 +155,27 @@ enum
 #define MAX_RESERVED_VERSION_CNT	2
 
 void *ThreadUDP(void *pArg);
+void *ThreadTCPUpdate(void *pArg);
+
+class CMCSAutoRelease
+{
+public:
+	void *m_pMCS;
+	CMCSAutoRelease()
+		:m_pMCS(NULL)
+	{};
+	CMCSAutoRelease(void *pMCS)
+	{
+		m_pMCS = pMCS;
+	};
+
+	~CMCSAutoRelease()
+	{
+		if (m_pMCS != NULL)
+		{
+			free(m_pMCS);
+		}
+	}
+};
 
 #endif /* UARTDAEMON_UART_DAEMON_H_ */

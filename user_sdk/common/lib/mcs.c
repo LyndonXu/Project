@@ -1103,6 +1103,91 @@ void MCSSyncFree(void *pData)
 }
 
 /*
+ * 函数名      : MCSSyncSendArr
+ * 功能        : 以MCS头作为同步头向SOCKET中发送一组命令数据
+ * 参数        : s32Socket[in] (int32_t类型): 要放送到的SOCKET
+ *             : u32TimeOut[in] (uint32_t类型): 超时(ms)
+ *             : u32CommandNum[in] (uint32_t 类型): 数据对应的命令号(根据情况可以添0)
+ *             : u32Cnt[in] (uint32_t 类型): 数组数量
+ *             : u32ElementSize[in] (uint32_t 类型): 数组一个元素的大小
+ *             : pData[in] (const void * 类型): 数组数据
+ * 返回值      : int32_t 型数据, 0成功, 否则失败
+ * 作者        : 许龙杰
+ */
+int32_t MCSSyncSendArr(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32CommandNum,
+		uint32_t u32Cnt, uint32_t u32ElementSize, const void *pData)
+{
+    int32_t s32Err = 0;
+    uint32_t u32Tmp = 0;
+    char c8HeaderMix[sizeof(StMCSHeader) + sizeof(StMCSCmdHeader)] = {0};
+    StMCSHeader *pMCSHeader;
+    StMCSCmdHeader *pMCSCmdHeader;
+    struct timeval stTimeout;
+    uint32_t u32Size = u32Cnt * u32ElementSize;
+
+    if (u32Size != 0 && pData == NULL)
+    {
+    	return MY_ERR(_Err_InvalidParam);
+    }
+
+    if (s32Socket <= 0)
+    {
+        return MY_ERR(_Err_InvalidParam);
+    }
+
+    pMCSHeader = (StMCSHeader *)c8HeaderMix;
+    pMCSCmdHeader = (StMCSCmdHeader *)(c8HeaderMix + sizeof(StMCSHeader));
+    memcpy(pMCSHeader->u8MixArr, c_u8MixArr, sizeof(c_u8MixArr));
+
+    u32Tmp = 1;
+    LittleAndBigEndianTransfer((char *)(&(pMCSHeader->u32CmdCnt)),
+            (char *)(&u32Tmp), sizeof(uint32_t));
+
+    u32Tmp = sizeof(StMCSCmdHeader) + u32Size;
+    LittleAndBigEndianTransfer((char *)(&(pMCSHeader->u32CmdTotalSize)),
+            (char *)(&u32Tmp), sizeof(uint32_t));
+
+    LittleAndBigEndianTransfer((char *)(&(pMCSCmdHeader->u32CmdNum)),
+            (char *)(&u32CommandNum), sizeof(uint32_t));
+    LittleAndBigEndianTransfer((char *)(&(pMCSCmdHeader->u32CmdCnt)),
+            (char *)(&u32Cnt), sizeof(uint32_t));
+    LittleAndBigEndianTransfer((char *)(&(pMCSCmdHeader->u32CmdSize)),
+            (char *)(&u32ElementSize), sizeof(uint32_t));
+
+    /* 设置套接字选项,接收和发送超时时间 */
+    stTimeout.tv_sec  = u32TimeOut / 1000;
+    stTimeout.tv_usec = (u32TimeOut % 1000) * 1000;
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+         return MY_ERR(_Err_SYS + errno);
+    }
+
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+        return MY_ERR(_Err_SYS + errno);
+    }
+
+    u32Tmp = send(s32Socket, c8HeaderMix, sizeof(c8HeaderMix), MSG_NOSIGNAL);
+    if (u32Tmp != sizeof(c8HeaderMix))
+    {
+        s32Err = MY_ERR(_Err_SYS + errno);
+        goto end;
+    }
+    if (pData != NULL)
+    {
+        u32Tmp = send(s32Socket, pData, u32Size, MSG_NOSIGNAL);
+        if (u32Tmp != u32Size)
+        {
+            s32Err = MY_ERR(_Err_SYS + errno);
+            goto end;
+        }
+    }
+
+end:
+    return s32Err;
+
+}
+/*
  * 函数名      : MCSSyncSend
  * 功能        : 以MCS头作为同步头向SOCKET中发送命令数据
  * 参数        : s32Socket[in] (int32_t类型): 要放送到的SOCKET
@@ -1115,6 +1200,9 @@ void MCSSyncFree(void *pData)
  */
 int32_t MCSSyncSend(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32CommandNum, uint32_t u32Size, const void *pData)
 {
+#if 1
+	return MCSSyncSendArr(s32Socket, u32TimeOut, u32CommandNum, 1, u32Size, pData);
+#else
     int32_t s32Err = 0;
     uint32_t u32Tmp = 0;
     char c8HeaderMix[sizeof(StMCSHeader) + sizeof(StMCSCmdHeader)] = {0};
@@ -1176,6 +1264,125 @@ int32_t MCSSyncSend(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32Command
 
 end:
     return s32Err;
+#endif
+}
+/*
+ * 函数名      : MCSSyncSendFile
+ * 功能        : 以MCS头作为同步头向SOCKET中发送文件数据
+ * 参数        : s32Socket[in] (int32_t类型): 要放送到的SOCKET
+ *             : u32TimeOut[in] (uint32_t类型): 超时(ms)
+ *             : u32CommandNum[in] (uint32_t 类型): 数据对应的命令号(根据情况可以添0)
+ *             : pFileName[in] (const char * 类型): 要发送文件的名称
+ * 返回值      : int32_t 型数据, 0成功, 否则失败
+ * 作者        : 许龙杰
+ */
+int32_t MCSSyncSendFile(int32_t s32Socket,  uint32_t u32TimeOut,
+		uint32_t u32CommandNum, const char *pFileName)
+{
+    int32_t s32Err = 0;
+    uint32_t u32Tmp = 0;
+    char c8HeaderMix[sizeof(StMCSHeader) + sizeof(StMCSCmdHeader)] = {0};
+    StMCSHeader *pMCSHeader;
+    StMCSCmdHeader *pMCSCmdHeader;
+    struct timeval stTimeout;
+    uint32_t u32Size = 0;
+    FILE *pFile = NULL;
+
+    if (pFileName == NULL)
+    {
+    	return MY_ERR(_Err_InvalidParam);
+    }
+
+    if (s32Socket <= 0)
+    {
+        return MY_ERR(_Err_InvalidParam);
+    }
+
+    pFile = fopen(pFileName, "rb");
+    if (pFile == NULL)
+    {
+        return MY_ERR(_Err_InvalidParam);
+    }
+
+    fseek(pFile, 0, SEEK_END);
+    u32Size = ftell(pFile);
+
+    pMCSHeader = (StMCSHeader *)c8HeaderMix;
+    pMCSCmdHeader = (StMCSCmdHeader *)(c8HeaderMix + sizeof(StMCSHeader));
+    memcpy(pMCSHeader->u8MixArr, c_u8MixArr, sizeof(c_u8MixArr));
+
+    u32Tmp = 1;
+    LittleAndBigEndianTransfer((char *)(&(pMCSHeader->u32CmdCnt)),
+            (char *)(&u32Tmp), sizeof(uint32_t));
+
+    u32Tmp = sizeof(StMCSCmdHeader) + u32Size;
+    LittleAndBigEndianTransfer((char *)(&(pMCSHeader->u32CmdTotalSize)),
+            (char *)(&u32Tmp), sizeof(uint32_t));
+
+    LittleAndBigEndianTransfer((char *)(&(pMCSCmdHeader->u32CmdNum)),
+            (char *)(&u32CommandNum), sizeof(uint32_t));
+
+    u32Tmp = 1;
+    LittleAndBigEndianTransfer((char *)(&(pMCSCmdHeader->u32CmdCnt)),
+            (char *)(&u32Tmp), sizeof(uint32_t));
+    LittleAndBigEndianTransfer((char *)(&(pMCSCmdHeader->u32CmdSize)),
+            (char *)(&u32Size), sizeof(uint32_t));
+
+    /* 设置套接字选项,接收和发送超时时间 */
+    stTimeout.tv_sec  = u32TimeOut / 1000;
+    stTimeout.tv_usec = (u32TimeOut % 1000) * 1000;
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+         s32Err = MY_ERR(_Err_SYS + errno);
+         goto end;
+    }
+
+    if(setsockopt(s32Socket, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+    {
+        s32Err = MY_ERR(_Err_SYS + errno);
+        goto end;
+    }
+
+    u32Tmp = send(s32Socket, c8HeaderMix, sizeof(c8HeaderMix), MSG_NOSIGNAL);
+    if (u32Tmp != sizeof(c8HeaderMix))
+    {
+        s32Err = MY_ERR(_Err_SYS + errno);
+        goto end;
+    }
+    do
+    {
+    	void *pData = malloc(4096);
+    	if (pData == NULL)
+    	{
+    		s32Err = MY_ERR(_Err_Mem);
+    		goto end;
+    	}
+        fseek(pFile, 0, SEEK_SET);
+		while(((int32_t)u32Size) > 0)
+		{
+			uint32_t u32NeedSend = u32Size > 4096 ? 4096 : u32Size;
+			int32_t s32ReadCnt = fread(pData, 1, u32NeedSend, pFile);
+			if (s32ReadCnt != u32NeedSend)
+			{
+				break;
+			}
+			u32Tmp = send(s32Socket, pData, u32NeedSend, MSG_NOSIGNAL);
+			if (u32Tmp != u32NeedSend)
+			{
+				s32Err = MY_ERR(_Err_SYS + errno);
+				break;
+			}
+			u32Size -= u32NeedSend;
+		}
+    } while (0);
+
+end:
+	if (pFile != NULL)
+	{
+		fclose(pFile);
+	}
+    return s32Err;
+
 }
 
 

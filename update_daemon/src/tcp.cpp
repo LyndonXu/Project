@@ -29,6 +29,24 @@ const char *c_pUpdateDir[_Update_Mode_Reserved] =
 	THIRD_PARTY_DIR,
 };
 
+const char *c_pLinkName[_Update_Mode_Reserved] =
+{
+	LINK_EXE_DIR,
+	LINK_GUI_CONFIG_DIR,
+	LINK_DRIVER_DIR,
+	LINK_THIRD_PARTY_DIR,
+};
+
+
+const char *c_pVerFlagName[] =
+{
+	"Cur",
+	"Prev",
+	"ReThird",
+	"ReFourth",
+	/* .... */
+};
+
 
 typedef struct _tagStVersionDirAttr
 {
@@ -96,14 +114,7 @@ int32_t GetAllFileOrDirAndDelNotRight(const char *pCurPath, struct dirent *pInfo
 	return 0;
 }
 
-const char *c_pVerFlagName[] =
-{
-	"Cur",
-	"Prev",
-	"ReThird",
-	"ReFourth",
-	/* .... */
-};
+
 
 int32_t SaveReservedVersion(const char *pJsonFile,
 		list<StReservedVersionAttr> &csReservedVersion)
@@ -175,7 +186,55 @@ int32_t ReservedVersionAttrUpdate(list<StReservedVersionAttr> &csReservedVersion
 	return 0;
 }
 
-int32_t ParseReservedVersion(const char *pJsonFile,
+int32_t GetReservedVersion(const char *pJsonFile,
+		list<StReservedVersionAttr> &csReservedVersion)
+{
+	json_object *pObj = NULL;
+	if (pJsonFile == NULL)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+
+	pObj = json_object_from_file(pJsonFile);
+	if (pObj == NULL)
+	{
+		return MY_ERR(_Err_InvalidParam);
+	}
+	PRINT("\n%s\n", json_object_to_json_string_ext(pObj, JSON_C_TO_STRING_SPACED |
+			JSON_C_TO_STRING_PRETTY));
+	do
+	{
+		int32_t i;
+		json_object *pVersionObj = NULL;
+		pVersionObj = json_object_object_get(pObj, "Version");
+		if (pVersionObj == NULL)
+		{
+			break;
+		}
+
+		for(i = 0; i < MAX_RESERVED_VERSION_CNT; i++)
+		{
+			json_object *pTmp = json_object_object_get(pVersionObj, c_pVerFlagName[i]);
+			if (pTmp != NULL)
+			{
+				StReservedVersionAttr stVersion;
+				stVersion.csName = json_object_get_string(pTmp);
+				if (stVersion.csName.length() != 0)
+				{
+					stVersion.s32Version = 0 - i;
+					csReservedVersion.push_back(stVersion);
+				}
+			}
+		}
+	}while(0);
+
+
+	json_object_put(pObj);
+	return 0;
+}
+
+
+int32_t ParseReservedVersionAndCorrect(const char *pJsonFile,
 		string &csCurVersion,
 		list<StReservedVersionAttr> &csReservedVersion)
 {
@@ -268,7 +327,7 @@ int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 	s32Err = readlink(pLink, c8Str, _POSIX_PATH_MAX);
 	if (s32Err < 0)
 	{
-		return MY_ERR(_Err_SYS +errno);
+		return MY_ERR(_Err_SYS + errno);
 	}
 	c8Str[s32Err] = 0;
 	if (strstr(c8Str, pDir) == NULL)
@@ -292,7 +351,7 @@ int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 
 	sprintf(c8Str, "%s/%s", pDir, VERSION_LIST_FILE);
 
-	s32Err = ParseReservedVersion(c8Str, csCurVersion, csReservedVersion);
+	s32Err = ParseReservedVersionAndCorrect(c8Str, csCurVersion, csReservedVersion);
 
 	/* Get all directory */
 	s32Err = TraversalDir(pDir, false, GetAllFileOrDirAndDelNotRight, &stArg);
@@ -382,6 +441,12 @@ void *ThreadTCPUpdate(void *pArg)
 	int32_t s32Socket = -1;
 	int32_t s32Err = 0;
 
+	for (s32Err = 0; s32Err < _Update_Mode_Reserved; s32Err++)
+	{
+		CheckVersion(c_pLinkName[s32Err], c_pUpdateDir[s32Err], false);
+	}
+	s32Err = 0;
+
 	s32Socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (s32Socket < 0)
 	{
@@ -404,6 +469,14 @@ void *ThreadTCPUpdate(void *pArg)
 			return NULL;
 	    }
 	}
+
+    if (listen(s32Socket, 1) < 0)
+    {
+        PRINT("Listen the socket error: %s\n", strerror(errno));
+		close(s32Socket);
+		return NULL;
+    }
+
 
 	while (!g_boIsExit)
 	{
@@ -444,8 +517,11 @@ void *ThreadTCPUpdate(void *pArg)
 							5000, &u32RecvSize, &s32Err);
 					if (pMCS == NULL)
 					{
+						PRINT("I cannot get more message via the socket after 5S from the last message\n");
 						break;
 					}
+
+					CMCSAutoRelease csMCSRealse(pMCS);
 
 					u32ErrCnt++;
 
@@ -459,16 +535,78 @@ void *ThreadTCPUpdate(void *pArg)
 					/* length */
 					LittleAndBigEndianTransfer((char *)(&u32Length), (const char *)pData, sizeof(uint32_t));
 					pData += sizeof(uint32_t);
+					PRINT("cmd %08x, cnt: %d, length %d\n", u32Cmd, u32Cnt, u32Length);
 
 					if (u32Cmd == _TCP_Cmd_Update_GetVersion)
 					{
 						/* <TODO> */
-						MCSSyncSend(s32Client, 2000, _MCS_Cmd_Echo | _TCP_Cmd_Update_GetVersion,
-								0, NULL);
-						break;
+						if (u32Cnt == 1 && u32Length == sizeof(StUpdateMode))
+						{
+							StUpdateMode *pMode = (StUpdateMode *)pData;
+							if (pMode->emMode >= _Update_Mode_Reserved)
+							{
+								PRINT("error update mode %d\n", pMode->emMode);
+								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								continue;
+							}
+							btea((int32_t *)pMode->u8Rand, 4,
+									(int32_t *)(c_unUpdateKey[pMode->emMode].s32Key));
+							if (memcmp(pMode->u8Rand, pMode->u8RandCode, 16) != 0)
+							{
+								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								continue;
+							}
+							u32ErrCnt = 0;
+
+							do
+							{
+								char c8Str[_POSIX_PATH_MAX];
+								list<StReservedVersionAttr> csReservedVersion;
+								int32_t s32Cnt = 0;
+								StUpdateVersion *pVersion;
+								sprintf(c8Str, "%s/%s", c_pUpdateDir[pMode->emMode], VERSION_LIST_FILE);
+								GetReservedVersion(c8Str, csReservedVersion);
+								s32Cnt = csReservedVersion.size();
+								if (s32Cnt == 0)
+								{
+									MCSSyncSend(s32Client, 2000, MY_ERR(_Err_Common), 0, NULL);
+									continue;
+								}
+
+								pVersion = (StUpdateVersion *)calloc(s32Cnt, sizeof(StUpdateVersion));
+								s32Cnt = 0;
+								if (pVersion != NULL)
+								{
+									list<StReservedVersionAttr>::iterator iter;
+									for (iter = csReservedVersion.begin(); iter != csReservedVersion.end(); iter++)
+									{
+										strncpy(pVersion[s32Cnt].c8Name, iter->csName.c_str(), 255);
+										pVersion[s32Cnt].s32Version = iter->s32Version;
+										s32Cnt++;
+									}
+									MCSSyncSendArr(s32Client, 2000, _MCS_Cmd_Echo | _TCP_Cmd_Update_GetVersion,
+											s32Cnt, sizeof(StUpdateVersion), pVersion);
+									free(pVersion);
+								}
+
+							} while (0);
+
+						}
+						else
+						{
+							PRINT("error command length\n");
+							MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdLen), 0, NULL);
+						}
+						continue;
+					}
+					else if (u32Cmd == _TCP_Cmd_Update_RollBack)
+					{
+
+						continue;
 					}
 					else if (u32Cmd != u32State)
 					{
+						PRINT("error command type\n");
 						MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdType), sizeof(uint32_t), &u32State);
 						continue;
 					}
@@ -480,6 +618,7 @@ void *ThreadTCPUpdate(void *pArg)
 							StUpdateMode *pMode = (StUpdateMode *)pData;
 							if (pMode->emMode >= _Update_Mode_Reserved)
 							{
+								PRINT("error update mode %d\n", pMode->emMode);
 								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
@@ -487,9 +626,12 @@ void *ThreadTCPUpdate(void *pArg)
 									(int32_t *)(c_unUpdateKey[pMode->emMode].s32Key));
 							if (memcmp(pMode->u8Rand, pMode->u8RandCode, 16) != 0)
 							{
+								PRINT("error update check\n");
 								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
+
+							MCSSyncSend(s32Client, 2000, _MCS_Cmd_Echo | _TCP_Cmd_Update_Mode, 0, NULL);
 
 							emUpdateMode = pMode->emMode;
 							u32State = _TCP_Cmd_Update_Name;
@@ -498,10 +640,10 @@ void *ThreadTCPUpdate(void *pArg)
 						}
 						else
 						{
+							PRINT("error command length\n");
 							MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdLen), 0, NULL);
 							continue;
 						}
-						break;
 					}
 					else
 					{
@@ -515,12 +657,15 @@ void *ThreadTCPUpdate(void *pArg)
 							pFile = fopen(c8FileName, "wb+");
 							if (pFile == NULL)
 							{
+								PRINT("error happened when open file %s\n", c8FileName);
 								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
+							MCSSyncSend(s32Client, 2000, _MCS_Cmd_Echo | _TCP_Cmd_Update_Name, 0, NULL);
 						}
 						else
 						{
+							PRINT("command length is not right\n");
 							MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdLen), 0, NULL);
 							continue;
 						}
@@ -533,19 +678,28 @@ void *ThreadTCPUpdate(void *pArg)
 						u32State = _TCP_Cmd_Update_File;
 						u32ErrCnt = 0;
 					}
-					MCSSyncFree(pMCS);
-
 				}
 				else if (u32State == _TCP_Cmd_Update_File)
 				{
 					/* receive the file */
 					PRINT("begin receive the file\n");
-
-					s32Err = MCSSyncReceiveCmdWithCB(s32Socket, _TCP_Cmd_Update_File, 5000,
+					u32ErrCnt++;
+#if 1
+					s32Err = MCSSyncReceiveCmdWithCB(s32Client, _TCP_Cmd_Update_File, 10 * 1000,
 							WriteFileCB, pFile);
-
+#else
+					uint32_t u32RecvSize = 0;
+					uint8_t *pMCS = (uint8_t *)MCSSyncReceiveWithLimit(s32Client, true, 4 * 1024 * 1024,
+							5000, &u32RecvSize, &s32Err);
+					PRINT("get some data %p(%d)\n", pMCS, u32RecvSize);
+					{
+						break;
+					}
+#endif
 					if (s32Err != 0)
 					{
+						PRINT("recv file error: %08x\n", s32Err);
+						MCSSyncSend(s32Client, 2000, s32Err, 0, NULL);
 						continue;
 					}
 
@@ -563,9 +717,22 @@ void *ThreadTCPUpdate(void *pArg)
 						sprintf(c8Buf, "tar -xf %s -C %s", c8FileName, c_pUpdateDir[emUpdateMode]);
 						system(c8Buf);
 
-						/* link, check, write configure and delete oldest version */
+						/* <TODO>link, check, write configure and delete oldest version */
+						s32Err = CheckVersion(c_pLinkName[emUpdateMode],
+								c_pUpdateDir[emUpdateMode], true);
+						if (s32Err != 0)
+						{
+							MCSSyncSend(s32Client, 2000, s32Err, 0, NULL);
+						}
+						else
+						{
+							MCSSyncSend(s32Client, 2000, _MCS_Cmd_Echo | _TCP_Cmd_Update_File, 0, NULL);
+						}
+
 
 					} while (0);
+					u32State = _TCP_Cmd_Update_Mode;
+					break;
 				}
 				else
 				{
