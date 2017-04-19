@@ -24,8 +24,8 @@ extern "C" {
  * -------------------------------------------------------------------
  * | 31~28  | 27~26 |    25   |  24  |     23 ~ 16    |    15 ~ 0    |
  * |--------|-------|---------|------|----------------|--------------|
- * | 标识域 |  保留 | 0：保留 | 保留 |        保留    | 各模块错误码 |
- * |  0x0E  |       | 1：用户 |      | 暂用于模块分配 |              |
+ * | 标识域  |  保留  | 0：保留  | 保留  |        保留     | 各模块错误码   |
+ * |  0x0E  |       | 1：用户  |      | 暂用于模块分配    |              |
  * -------------------------------------------------------------------
  */
 #define FULL_ERROR_CODE(Identification, UserOrReserved, Module, Code) \
@@ -37,6 +37,7 @@ extern "C" {
 #define ERROR_CODE(Module, Code) 			FULL_ERROR_CODE(0x0E, 0, (Module), (Code))
 
 #define MY_ERR(code)       					ERROR_CODE(0x15, (code))
+#define COMMON_ERR(code)       				MY_ERR(code)
 
 
 enum

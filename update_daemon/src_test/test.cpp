@@ -7,8 +7,8 @@
 
 #include <unistd.h>
 #include "update_daemon.h"
-//#define SERCHER_TEST
-#define UPDATE_TEST
+#define SERCHER_TEST
+//#define UPDATE_TEST
 
 #if defined UPDATE_TEST
 #include <sys/un.h>
@@ -28,11 +28,11 @@ int32_t GetVersion(int32_t s32Socket, EmUpdateMode emUpdateMode)
 	uint8_t *pMCS;
 	uint32_t u32RecvSize = 0;
 	stMode.emMode = emUpdateMode;
-	for (int32_t i = 0; i < 16; i++)
+	for (int32_t i = 0; i < BTEA_CODE_LENGTH; i++)
 	{
-		stMode.u8RandCode[i] = stMode.u8Rand[i] = rand();
+		stMode.stCheck.u8RandCode[i] = stMode.stCheck.u8Rand[i] = rand();
 	}
-	btea((int32_t *)stMode.u8RandCode, 4,(int32_t *)(c_unUpdateKey[emUpdateMode].s32Key));
+	btea((int32_t *)stMode.stCheck.u8RandCode, 4,(int32_t *)(c_unUpdateKey[emUpdateMode].s32Key));
 
 	s32Err = MCSSyncSend(s32Socket, 1000, _TCP_Cmd_Update_GetVersion, sizeof(StUpdateMode), &stMode);
 	if (s32Err != 0)
@@ -85,11 +85,11 @@ int32_t UpdateSeleteMode(int32_t s32Socket, EmUpdateMode emUpdateMode)
 	uint8_t *pMCS;
 	uint32_t u32RecvSize = 0;
 	stMode.emMode = emUpdateMode;
-	for (int32_t i = 0; i < 16; i++)
+	for (int32_t i = 0; i < BTEA_CODE_LENGTH; i++)
 	{
-		stMode.u8RandCode[i] = stMode.u8Rand[i] = rand();
+		stMode.stCheck.u8RandCode[i] = stMode.stCheck.u8Rand[i] = rand();
 	}
-	btea((int32_t *)stMode.u8RandCode, 4,(int32_t *)(c_unUpdateKey[emUpdateMode].s32Key));
+	btea((int32_t *)stMode.stCheck.u8RandCode, 4,(int32_t *)(c_unUpdateKey[emUpdateMode].s32Key));
 
 	s32Err = MCSSyncSend(s32Socket, 1000, _TCP_Cmd_Update_Mode, sizeof(StUpdateMode), &stMode);
 	if (s32Err != 0)
@@ -284,88 +284,280 @@ int main(int argc, char * const argv[])
 	return s32Err;
 }
 #elif defined SERCHER_TEST
+const UnBteaKey c_unSetNetConfigKey = 	{.c8Key = "set network cfg"};
+const UnBteaKey c_unSetMACAddrKey = 	{.c8Key = "set MAC address"};
+
 char c8Buf[4096];
+
+int32_t SetMACAddr(int32_t s32Socket)
+{
+	int32_t s32Err;
+	uint32_t u32Size = 0;
+	StSetMacAddr stConfig =
+	{
+		{0,},
+		{
+			"00:0C:29:FE:D8:E4",
+			"AA:BB:CC:DD:EE:FF",
+		}
+	};
+	for (int32_t i = 0; i < BTEA_CODE_LENGTH; i++)
+	{
+		stConfig.stCheck.u8RandCode[i] = stConfig.stCheck.u8Rand[i] = rand();
+	}
+	btea((int32_t *)stConfig.stCheck.u8RandCode, 4,(int32_t *)(c_unSetMACAddrKey.s32Key));
+
+	uint8_t *pMCS = (uint8_t *)MCSMakeAnArrayVarialbleCmd(_UDP_Cmd_SetMAC, &stConfig, 1, sizeof(StSetMacAddr), &u32Size);
+
+
+	if (pMCS != NULL)
+	{
+		struct sockaddr_in stAddr = {0};
+		stAddr.sin_family = AF_INET;
+		stAddr.sin_port = htons(UDP_SERVER_PORT);
+		stAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //inet_addr("192.168.247.135"); //htonl(INADDR_BROADCAST);//
+		s32Err = sendto(s32Socket, pMCS, u32Size,
+				MSG_NOSIGNAL, (struct sockaddr *)(&stAddr), sizeof(struct sockaddr));
+		if (s32Err < 0)
+		{
+			PRINT("UDP send message error: %s\n", strerror(errno));
+			return COMMON_ERR(_Err_SYS + errno);
+		}
+
+		MCSFree(pMCS);
+	}
+
+	do
+	{
+		struct sockaddr_in stAddr = {0};
+		socklen_t s32Len = sizeof(struct sockaddr_in);
+		int32_t s32RecvLen = recvfrom(s32Socket, c8Buf, 4096,
+				0, (struct sockaddr *)(&stAddr), &s32Len);
+		if (s32RecvLen > 0 && (s32Len == sizeof (struct sockaddr_in)))
+		{
+			do
+			{
+				uint32_t u32Cmd, u32Cnt, u32Length;
+				uint8_t *pData = (uint8_t *)c8Buf + 16;
+				/* command */
+				LittleAndBigEndianTransfer((char *)(&u32Cmd), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				/* count */
+				LittleAndBigEndianTransfer((char *)(&u32Cnt), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				/* length */
+				LittleAndBigEndianTransfer((char *)(&u32Length), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				PRINT("cmd %08x, cnt: %d, length %d\n", u32Cmd, u32Cnt, u32Length);
+
+				if (u32Cmd != (_MCS_Cmd_Echo | _UDP_Cmd_SetMAC))
+				{
+					s32Err = u32Cmd;
+				}
+				else
+				{
+					PRINT("Set OK:\n");
+				}
+			} while (0);
+		}
+		else
+		{
+			PRINT("UDP send message error: %s\n", strerror(errno));
+			return COMMON_ERR(_Err_SYS + errno);
+		}
+	} while(0);
+
+	return s32Err;
+}
+
+int32_t SetNetConfig(int32_t s32Socket)
+{
+	int32_t s32Err;
+	uint32_t u32Size = 0;
+	StSetNetConfig stConfig =
+	{
+		{0,},
+		{
+			false,
+			"192.168.1.100",
+			"255.255.255.0",
+			"192.168.1.1",
+			"192.168.1.1",
+			"192.168.1.1",
+			"00:0C:29:FE:D8:E4"
+		}
+	};
+	for (int32_t i = 0; i < BTEA_CODE_LENGTH; i++)
+	{
+		stConfig.stCheck.u8RandCode[i] = stConfig.stCheck.u8Rand[i] = rand();
+	}
+	btea((int32_t *)stConfig.stCheck.u8RandCode, 4,(int32_t *)(c_unSetNetConfigKey.s32Key));
+
+	uint8_t *pMCS = (uint8_t *)MCSMakeAnArrayVarialbleCmd(_UDP_Cmd_SetEthInfo, &stConfig, 1, sizeof(StSetNetConfig), &u32Size);
+
+
+	if (pMCS != NULL)
+	{
+		struct sockaddr_in stAddr = {0};
+		stAddr.sin_family = AF_INET;
+		stAddr.sin_port = htons(UDP_SERVER_PORT);
+		stAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //inet_addr("192.168.247.135"); //htonl(INADDR_BROADCAST);//
+		s32Err = sendto(s32Socket, pMCS, u32Size,
+				MSG_NOSIGNAL, (struct sockaddr *)(&stAddr), sizeof(struct sockaddr));
+		if (s32Err < 0)
+		{
+			PRINT("UDP send message error: %s\n", strerror(errno));
+			return COMMON_ERR(_Err_SYS + errno);
+		}
+
+		MCSFree(pMCS);
+	}
+
+	do
+	{
+		struct sockaddr_in stAddr = {0};
+		socklen_t s32Len = sizeof(struct sockaddr_in);
+		int32_t s32RecvLen = recvfrom(s32Socket, c8Buf, 4096,
+				0, (struct sockaddr *)(&stAddr), &s32Len);
+		if (s32RecvLen > 0 && (s32Len == sizeof (struct sockaddr_in)))
+		{
+			do
+			{
+				uint32_t u32Cmd, u32Cnt, u32Length;
+				uint8_t *pData = (uint8_t *)c8Buf + 16;
+				/* command */
+				LittleAndBigEndianTransfer((char *)(&u32Cmd), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				/* count */
+				LittleAndBigEndianTransfer((char *)(&u32Cnt), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				/* length */
+				LittleAndBigEndianTransfer((char *)(&u32Length), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				PRINT("cmd %08x, cnt: %d, length %d\n", u32Cmd, u32Cnt, u32Length);
+
+				if (u32Cmd != (_MCS_Cmd_Echo | _UDP_Cmd_SetEthInfo))
+				{
+					s32Err = u32Cmd;
+				}
+				else
+				{
+					StNetInterfaceConfig *pConfig = (StNetInterfaceConfig *)pData;
+					PRINT("get information:\n"
+							"DHCP: %s\n"
+							"IP: %s\n"
+							"NetMask: %s\n"
+							"GateWay: %s\n"
+							"DNS: %s\n"
+							"Reserved DNS: %s\n"
+							"MAC: %s\n",
+							pConfig->boIsDHCP ? "YES" : "NO",
+							pConfig->c8IPV4,
+							pConfig->c8Mask,
+							pConfig->c8Gateway,
+							pConfig->c8DNS,
+							pConfig->c8ReserveDNS,
+							pConfig->c8MACAddr);
+				}
+			} while (0);
+		}
+		else
+		{
+			PRINT("UDP send message error: %s\n", strerror(errno));
+			return COMMON_ERR(_Err_SYS + errno);
+		}
+	} while(0);
+
+	return s32Err;
+}
+int32_t GetNetConfig(int32_t s32Socket)
+{
+	int32_t s32Err;
+	uint32_t u32Size = 0;
+	uint8_t *pMCS = (uint8_t *)MCSMakeAnArrayVarialbleCmd(_UDP_Cmd_GetEthInfo, NULL, 0, 0, &u32Size);
+
+
+	if (pMCS != NULL)
+	{
+		struct sockaddr_in stAddr = {0};
+		stAddr.sin_family = AF_INET;
+		stAddr.sin_port = htons(UDP_SERVER_PORT);
+		stAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //inet_addr("192.168.247.135"); //htonl(INADDR_BROADCAST);//
+		s32Err = sendto(s32Socket, pMCS, u32Size,
+				MSG_NOSIGNAL, (struct sockaddr *)(&stAddr), sizeof(struct sockaddr));
+		if (s32Err < 0)
+		{
+			PRINT("UDP send message error: %s\n", strerror(errno));
+			return COMMON_ERR(_Err_SYS + errno);
+		}
+
+		MCSFree(pMCS);
+	}
+
+	do
+	{
+		struct sockaddr_in stAddr = {0};
+		socklen_t s32Len = sizeof(struct sockaddr_in);
+		int32_t s32RecvLen = recvfrom(s32Socket, c8Buf, 4096,
+				0, (struct sockaddr *)(&stAddr), &s32Len);
+		if (s32RecvLen > 0 && (s32Len == sizeof (struct sockaddr_in)))
+		{
+			do
+			{
+				uint32_t u32Cmd, u32Cnt, u32Length;
+				uint8_t *pData = (uint8_t *)c8Buf + 16;
+				/* command */
+				LittleAndBigEndianTransfer((char *)(&u32Cmd), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				/* count */
+				LittleAndBigEndianTransfer((char *)(&u32Cnt), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				/* length */
+				LittleAndBigEndianTransfer((char *)(&u32Length), (const char *)pData, sizeof(uint32_t));
+				pData += sizeof(uint32_t);
+				PRINT("cmd %08x, cnt: %d, length %d\n", u32Cmd, u32Cnt, u32Length);
+
+				if (u32Cmd != (_MCS_Cmd_Echo | _UDP_Cmd_GetEthInfo))
+				{
+					s32Err = u32Cmd;
+				}
+				else
+				{
+					StNetInterfaceConfig *pConfig = (StNetInterfaceConfig *)pData;
+					PRINT("get information:\n"
+							"DHCP: %s\n"
+							"IP: %s\n"
+							"NetMask: %s\n"
+							"GateWay: %s\n"
+							"DNS: %s\n"
+							"Reserved DNS: %s\n"
+							"MAC: %s\n",
+							pConfig->boIsDHCP ? "YES" : "NO",
+							pConfig->c8IPV4,
+							pConfig->c8Mask,
+							pConfig->c8Gateway,
+							pConfig->c8DNS,
+							pConfig->c8ReserveDNS,
+							pConfig->c8MACAddr);
+				}
+			} while (0);
+		}
+		else
+		{
+			PRINT("UDP send message error: %s\n", strerror(errno));
+			return COMMON_ERR(_Err_SYS + errno);
+		}
+	} while(0);
+
+	return s32Err;
+}
+
 
 int main(int argc, char * const argv[])
 {
 	int32_t s32Socket = -1;
 	int32_t s32Err = 0;
-	uint8_t *pMCS;
-	uint32_t u32Size = 0;
-	uint32_t u32Cmd = -1, u32Length = -1;
-	const char *pDataIn = NULL;
-	bool boNeedEcho = false;
-	int32_t s32Char;
-	uint8_t *pData = NULL;
 
-	while ((s32Char = getopt(argc, argv, "c:l:d:o")) != -1)
-	{
-		switch (s32Char)
-		{
-			case 'c':
-			{
-				sscanf(optarg, "%x", &u32Cmd);
-				break;
-			}
-			case 'd':
-			{
-				pDataIn = optarg;
-				break;
-			}
-			case 'l':
-			{
-				sscanf(optarg, "%d", &u32Length);
-				break;
-			}
-			case 'o':
-			{
-				boNeedEcho = true;
-				break;
-			}
-            default: /* '?' */
-                fprintf(stderr, "Usage: %s [-c command number] [-l length] "
-                		"[-d data] [-o need print echo]\n", argv[0]);
-				return -1;
-		}
-	}
-
-
-	if (u32Length == (uint32_t)(-1))
-	{
-		if (pDataIn == NULL)
-		{
-			u32Length = 0;
-		}
-		else
-		{
-			u32Length = strlen(pDataIn);
-		}
-	}
-
-	if ((pDataIn != NULL && (int32_t)u32Length > 0))
-	{
-		pData = (uint8_t *)malloc(u32Length);
-		if (pData == NULL)
-		{
-			return -1;
-		}
-	}
-
-
-	switch (u32Cmd)
-	{
-		case _UDP_Cmd_GetEthInfo:
-		{
-			break;
-		}
-		default:
-			u32Cmd = _UDP_Cmd_GetEthInfo;
-			if (pData != NULL)
-			{
-				memcpy(pData, pDataIn, u32Length);
-			}
-			break;
-	}
 
 	s32Socket = socket(AF_INET, SOCK_DGRAM, 0);
 	if (s32Socket < 0)
@@ -386,47 +578,7 @@ int main(int argc, char * const argv[])
 		}
 	}
 
-	pMCS = (uint8_t *)MCSMakeAnArrayVarialbleCmd(u32Cmd, pData, 1, u32Length, &u32Size);
-	if (pData != NULL)
-	{
-		free(pData);
-	}
-	if (pMCS != NULL)
-	{
-		struct sockaddr_in stAddr = {0};
-		stAddr.sin_family = AF_INET;
-		stAddr.sin_port = htons(UDP_SERVER_PORT);
-		stAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //inet_addr("192.168.247.135"); //htonl(INADDR_BROADCAST);//
-		s32Err = sendto(s32Socket, pMCS, u32Size,
-				MSG_NOSIGNAL, (struct sockaddr *)(&stAddr), sizeof(struct sockaddr));
-		if (s32Err < 0)
-		{
-			PRINT("UDP send message error: %s\n", strerror(errno));
-		}
-
-		MCSFree(pMCS);
-	}
-
-	if (boNeedEcho)
-	{
-		struct sockaddr_in stAddr = {0};
-		socklen_t s32Len = sizeof(struct sockaddr_in);
-		int32_t s32RecvLen = recvfrom(s32Socket, c8Buf, 4096,
-				0, (struct sockaddr *)(&stAddr), &s32Len);
-		if (s32RecvLen > 0 && (s32Len == sizeof (struct sockaddr_in)))
-		{
-			for (int32_t i = 0; i < s32RecvLen; i++)
-			{
-				if ((i & 0x0F) == 0)
-				{
-					printf("\n");
-				}
-				printf("%02hhx ", c8Buf[i]);
-			}
-			printf("\n");
-
-		}
-	}
+	SetMACAddr(s32Socket);
 
 	close(s32Socket);
 

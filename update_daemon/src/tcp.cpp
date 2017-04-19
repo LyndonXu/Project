@@ -123,18 +123,18 @@ int32_t SaveReservedVersion(const char *pJsonFile,
 	json_object *pObj = NULL, *pSonObj = NULL;
 	if (pJsonFile == NULL)
 	{
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 	pObj = json_object_new_object();
 	if (pObj == NULL)
 	{
-		return MY_ERR(_Err_Mem);
+		return COMMON_ERR(_Err_Mem);
 	}
 
 	pSonObj = json_object_new_object();
 	if (pObj == NULL)
 	{
-		s32Err = MY_ERR(_Err_Mem);
+		s32Err = COMMON_ERR(_Err_Mem);
 		goto end;
 	}
 
@@ -192,13 +192,13 @@ int32_t GetReservedVersion(const char *pJsonFile,
 	json_object *pObj = NULL;
 	if (pJsonFile == NULL)
 	{
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 
 	pObj = json_object_from_file(pJsonFile);
 	if (pObj == NULL)
 	{
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 	PRINT("\n%s\n", json_object_to_json_string_ext(pObj, JSON_C_TO_STRING_SPACED |
 			JSON_C_TO_STRING_PRETTY));
@@ -242,7 +242,7 @@ int32_t ParseReservedVersionAndCorrect(const char *pJsonFile,
 	string csCurVerInRecord = csCurVersion;
 	if (pJsonFile == NULL)
 	{
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 
 	pObj = json_object_from_file(pJsonFile);
@@ -327,20 +327,20 @@ int32_t CheckVersion(const char *pLink, const char *pDir, bool boAutoLink)
 	s32Err = readlink(pLink, c8Str, _POSIX_PATH_MAX);
 	if (s32Err < 0)
 	{
-		return MY_ERR(_Err_SYS + errno);
+		return COMMON_ERR(_Err_SYS + errno);
 	}
 	c8Str[s32Err] = 0;
 	if (strstr(c8Str, pDir) == NULL)
 	{
 		PRINT("the link maybe not write, link: %s, dir: %s\n", c8Str, pDir);
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 
 	pTmp = strrchr(c8Str, '/');
 	if (pTmp == NULL)
 	{
 		PRINT("the link maybe not write: %s\n", c8Str);
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 	pTmp += 1;
 	csCurVersion = pTmp;
@@ -546,14 +546,14 @@ void *ThreadTCPUpdate(void *pArg)
 							if (pMode->emMode >= _Update_Mode_Reserved)
 							{
 								PRINT("error update mode %d\n", pMode->emMode);
-								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
-							btea((int32_t *)pMode->u8Rand, 4,
+							btea((int32_t *)pMode->stCheck.u8Rand, 4,
 									(int32_t *)(c_unUpdateKey[pMode->emMode].s32Key));
-							if (memcmp(pMode->u8Rand, pMode->u8RandCode, 16) != 0)
+							if (memcmp(pMode->stCheck.u8Rand, pMode->stCheck.u8RandCode, BTEA_CODE_LENGTH) != 0)
 							{
-								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
 							u32ErrCnt = 0;
@@ -569,7 +569,7 @@ void *ThreadTCPUpdate(void *pArg)
 								s32Cnt = csReservedVersion.size();
 								if (s32Cnt == 0)
 								{
-									MCSSyncSend(s32Client, 2000, MY_ERR(_Err_Common), 0, NULL);
+									MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_Common), 0, NULL);
 									continue;
 								}
 
@@ -595,7 +595,7 @@ void *ThreadTCPUpdate(void *pArg)
 						else
 						{
 							PRINT("error command length\n");
-							MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdLen), 0, NULL);
+							MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_CmdLen), 0, NULL);
 						}
 						continue;
 					}
@@ -607,7 +607,7 @@ void *ThreadTCPUpdate(void *pArg)
 					else if (u32Cmd != u32State)
 					{
 						PRINT("error command type\n");
-						MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdType), sizeof(uint32_t), &u32State);
+						MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_CmdType), sizeof(uint32_t), &u32State);
 						continue;
 					}
 
@@ -619,15 +619,15 @@ void *ThreadTCPUpdate(void *pArg)
 							if (pMode->emMode >= _Update_Mode_Reserved)
 							{
 								PRINT("error update mode %d\n", pMode->emMode);
-								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
-							btea((int32_t *)pMode->u8Rand, 4,
+							btea((int32_t *)pMode->stCheck.u8Rand, 4,
 									(int32_t *)(c_unUpdateKey[pMode->emMode].s32Key));
-							if (memcmp(pMode->u8Rand, pMode->u8RandCode, 16) != 0)
+							if (memcmp(pMode->stCheck.u8Rand, pMode->stCheck.u8RandCode, BTEA_CODE_LENGTH) != 0)
 							{
 								PRINT("error update check\n");
-								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
 
@@ -641,7 +641,7 @@ void *ThreadTCPUpdate(void *pArg)
 						else
 						{
 							PRINT("error command length\n");
-							MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdLen), 0, NULL);
+							MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_CmdLen), 0, NULL);
 							continue;
 						}
 					}
@@ -658,7 +658,7 @@ void *ThreadTCPUpdate(void *pArg)
 							if (pFile == NULL)
 							{
 								PRINT("error happened when open file %s\n", c8FileName);
-								MCSSyncSend(s32Client, 2000, MY_ERR(_Err_InvalidParam), 0, NULL);
+								MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_InvalidParam), 0, NULL);
 								continue;
 							}
 							MCSSyncSend(s32Client, 2000, _MCS_Cmd_Echo | _TCP_Cmd_Update_Name, 0, NULL);
@@ -666,7 +666,7 @@ void *ThreadTCPUpdate(void *pArg)
 						else
 						{
 							PRINT("command length is not right\n");
-							MCSSyncSend(s32Client, 2000, MY_ERR(_Err_CmdLen), 0, NULL);
+							MCSSyncSend(s32Client, 2000, COMMON_ERR(_Err_CmdLen), 0, NULL);
 							continue;
 						}
 
@@ -714,6 +714,9 @@ void *ThreadTCPUpdate(void *pArg)
 						sprintf(c8Buf, "mkdir -p %s", c_pUpdateDir[emUpdateMode]);
 						system(c8Buf);
 
+						/* <TODO> maybe I should uncompress it to a temp folder and then
+						 * check where it has been existed in the program folder
+						 * */
 						sprintf(c8Buf, "tar -xf %s -C %s", c8FileName, c_pUpdateDir[emUpdateMode]);
 						system(c8Buf);
 

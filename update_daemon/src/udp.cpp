@@ -11,6 +11,10 @@
 #define UDP_MSG_BUF_LEN	2048
 static uint8_t *s_pUDPBuf[UDP_MSG_BUF_LEN];
 
+const UnBteaKey c_unSetNetConfigKey = 	{.c8Key = "set network cfg"};
+const UnBteaKey c_unSetMACAddrKey = 	{.c8Key = "set MAC address"};
+
+
 
 /* compare cmdline file to get the process's PID, if find it, return the PID(positive number) */
 int32_t CompareCmdlineCB(const char *pCurPath, struct dirent *pInfo, void *pContext)
@@ -183,13 +187,13 @@ int32_t LoadConfingFile(StNetInterfaceConfig *pConfig)
 	json_object *pObj = NULL;
 	if (pConfig == NULL)
 	{
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 
 	pObj = json_object_from_file(ETH_ADDR_CONFIG);
 	if (pObj == NULL)
 	{
-		return MY_ERR(_Err_JSON);
+		return COMMON_ERR(_Err_JSON);
 	}
 	PRINT("\n%s\n", json_object_to_json_string_ext(pObj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 	do
@@ -226,18 +230,18 @@ int32_t SaveConfingFile(StNetInterfaceConfig *pConfig)
 	json_object *pObj = NULL, *pSonObj = NULL;
 	if (pConfig == NULL)
 	{
-		return MY_ERR(_Err_InvalidParam);
+		return COMMON_ERR(_Err_InvalidParam);
 	}
 	pObj = json_object_new_object();
 	if (pObj == NULL)
 	{
-		return MY_ERR(_Err_Mem);
+		return COMMON_ERR(_Err_Mem);
 	}
 
 	pSonObj = json_object_new_object();
 	if (pObj == NULL)
 	{
-		s32Err = MY_ERR(_Err_Mem);
+		s32Err = COMMON_ERR(_Err_Mem);
 		goto end;
 	}
 
@@ -276,28 +280,47 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 		{
 			pMCS = MCSMakeAnArrayVarialbleCmd(_MCS_Cmd_Echo | _UDP_Cmd_GetEthInfo,
 					&(pArg->pNetConfigInner->stConfig), 1, sizeof(StNetInterfaceConfig), &u32MCDLen);
-
 			break;
 		}
 		case _UDP_Cmd_SetEthInfo:
 		{
-			if (u32TotalLength != sizeof(StNetInterfaceConfig))
+			if (u32TotalLength != sizeof(StSetNetConfig))
 			{
-				pMCS = MCSMakeAnArrayVarialbleCmd(MY_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+				pMCS = MCSMakeAnArrayVarialbleCmd(COMMON_ERR(_Err_CmdLen), NULL, 0, 0, &u32MCDLen);
 			}
 			else
 			{
+				StSetNetConfig *pConfig = (StSetNetConfig *)pCmdData;
+				pConfig->stConfig.c8MACAddr[21] = 0;
+				btea((int32_t *)pConfig->stCheck.u8Rand, 4, (int32_t *)(c_unSetNetConfigKey.s32Key));
+				if (memcmp(pConfig->stCheck.u8Rand, pConfig->stCheck.u8RandCode, BTEA_CODE_LENGTH) != 0)
+				{
+					PRINT("set eth config error code\n");
+					pMCS = MCSMakeAnArrayVarialbleCmd(COMMON_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+					break;
+				}
+
+				if (strcasecmp(pArg->pNetConfigInner->stConfig.c8MACAddr, pConfig->stConfig.c8MACAddr) != 0)
+				{
+					PRINT("set eth config error MAC: %s\n"
+							"mine is: %s\n",
+							pConfig->stConfig.c8MACAddr,
+							pArg->pNetConfigInner->stConfig.c8MACAddr);
+					pMCS = MCSMakeAnArrayVarialbleCmd(COMMON_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+					break;
+				}
 #if HAS_CROSS
-				SetNetInterface(INTERFACE_NAME, pArg->pNetConfigInner);
+				SetNetInterface(INTERFACE_NAME, &(pConfig->stConfig));
 #endif
-				SaveConfingFile(&(pArg->pNetConfigInner->stConfig));
+				SaveConfingFile(&(pConfig->stConfig));
 				/* get current information */
 				{
 					StIPV4Addr stAddr;
 					GetInterfaceIPV4Addr(INTERFACE_NAME, &stAddr);
-					memcpy(pArg->pNetConfigInner->stConfig.c8IPV4, stAddr.c8IPAddr, IPV4_ADDR_LENGTH * 3);
+					memcpy(pArg->pNetConfigInner->stConfig.c8IPV4, stAddr.c8IPAddr,
+							IPV4_ADDR_LENGTH * 5 + MAC_ADDR_LENGTH);
 				}
-				pMCS = MCSMakeAnArrayVarialbleCmd(_MCS_Cmd_Echo | _UDP_Cmd_GetEthInfo,
+				pMCS = MCSMakeAnArrayVarialbleCmd(_MCS_Cmd_Echo | _UDP_Cmd_SetEthInfo,
 						&(pArg->pNetConfigInner->stConfig), 1, sizeof(StNetInterfaceConfig), &u32MCDLen);
 
 			}
@@ -306,25 +329,33 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 		}
 		case _UDP_Cmd_SetMAC:
 		{
-			if (u32TotalLength != sizeof(StHardwareAddr))
+			if (u32TotalLength != sizeof(StSetMacAddr))
 			{
-				pMCS = MCSMakeAnArrayVarialbleCmd(MY_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+				pMCS = MCSMakeAnArrayVarialbleCmd(COMMON_ERR(_Err_CmdLen), NULL, 0, 0, &u32MCDLen);
 			}
 			else
 			{
-				StHardwareAddr *pAddr = (StHardwareAddr *)pCmdData;
-				if(strcmp(pAddr->c8OldMACAddr, pArg->pNetConfigInner->stConfig.c8MACAddr) != 0)
+				StSetMacAddr *pAddr = (StSetMacAddr *)pCmdData;
+				pAddr->stConfig.c8OldMACAddr[21] = pAddr->stConfig.c8NewMACAddr[21] = 0;
+				btea((int32_t *)pAddr->stCheck.u8Rand, 4, (int32_t *)(c_unSetMACAddrKey.s32Key));
+				if (memcmp(pAddr->stCheck.u8Rand, pAddr->stCheck.u8RandCode, BTEA_CODE_LENGTH) != 0)
 				{
-					//pMCS = MCSMakeAnArrayVarialbleCmd(MY_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+					pMCS = MCSMakeAnArrayVarialbleCmd(COMMON_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+					break;
+				}
+				if (strcasecmp(pArg->pNetConfigInner->stConfig.c8MACAddr, pAddr->stConfig.c8OldMACAddr) != 0)
+				{
+					pMCS = MCSMakeAnArrayVarialbleCmd(COMMON_ERR(_Err_InvalidParam), NULL, 0, 0, &u32MCDLen);
+					break;
 				}
 				else
 				{
 					char c8Buf[256];
 					sprintf(c8Buf, "mkdir -p %s", PROGRAM_DIR);
-					PRINT("%s", c8Buf);
+					PRINT("%s\n", c8Buf);
 					system(c8Buf);
-					sprintf(c8Buf, "echo HWAddr=%s > %s", pAddr->c8NewMACAddr, HW_ADDR_CONFIG);
-					PRINT("%s", c8Buf);
+					sprintf(c8Buf, "echo HWAddr=%s > %s", pAddr->stConfig.c8NewMACAddr, HW_ADDR_CONFIG);
+					PRINT("%s\n", c8Buf);
 					system(c8Buf);
 					pMCS = MCSMakeAnArrayVarialbleCmd(_MCS_Cmd_Echo | _UDP_Cmd_SetMAC,
 							NULL, 0, 0, &u32MCDLen);

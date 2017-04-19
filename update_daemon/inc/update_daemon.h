@@ -30,6 +30,7 @@
 
 #include "common.h"
 
+#define UPDATE_ERR(code)	ERROR_CODE(0x16, (code))
 
 extern bool g_boIsExit;
 
@@ -50,6 +51,13 @@ extern bool g_boIsExit;
 #endif
 
 #endif
+#define BTEA_CODE_LENGTH	16
+typedef struct _tagStBteaCheck
+{
+	uint8_t u8Rand[BTEA_CODE_LENGTH];
+	uint8_t u8RandCode[BTEA_CODE_LENGTH];
+}StBteaCheck;
+
 
 typedef struct _tagStNetInterfaceConfig
 {
@@ -75,6 +83,17 @@ typedef struct _tagStHardwareAddr
 	char c8NewMACAddr[MAC_ADDR_LENGTH];
 }StHardwareAddr;
 
+typedef struct _tagStSetNetConfig
+{
+	StBteaCheck stCheck;
+	StNetInterfaceConfig stConfig;
+}StSetNetConfig;
+
+typedef struct _tagStSetMacAddr
+{
+	StBteaCheck stCheck;
+	StHardwareAddr stConfig;
+}StSetMacAddr;
 
 typedef enum _tagEmUpdateMode
 {
@@ -90,8 +109,7 @@ typedef enum _tagEmUpdateMode
 typedef struct _tagStUpdateMode
 {
 	EmUpdateMode emMode;
-	uint8_t u8Rand[16];
-	uint8_t u8RandCode[16];
+	StBteaCheck stCheck;
 }StUpdateMode;
 
 typedef struct _tagStUpdateVersion
@@ -108,13 +126,14 @@ typedef struct _tagStRollBack
 
 enum
 {
-	_UDP_Cmd_GetEthInfo = _MCS_Cmd_UpdateDaemon,
-	_UDP_Cmd_SetEthInfo,
+	_UDP_Cmd_GetEthInfo = _MCS_Cmd_UpdateDaemon,	/* payload none, echo _MCS_Cmd_Echo | _UDP_Cmd_GetEthInfo with data StNetInterfaceConfig */
+	_UDP_Cmd_SetEthInfo,							/* payload StSetNetConfig, echo _MCS_Cmd_Echo | _UDP_Cmd_SetEthInfo with data StNetInterfaceConfig */
 
-	_UDP_Cmd_SetMAC = _MCS_Cmd_UpdateDaemon + 0x10,
+	_UDP_Cmd_SetMAC = _MCS_Cmd_UpdateDaemon + 0x10, /* payload StSetMacAddr, echo _MCS_Cmd_Echo | _UDP_Cmd_SetEthInfo with no data */
 
 
 	_TCP_Cmd_Update = _MCS_Cmd_UpdateDaemon + 0x100,
+
 	_TCP_Cmd_Update_Mode = _TCP_Cmd_Update,		/* StUpdateMode, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_Mode with no data */
 	_TCP_Cmd_Update_Name,						/* strlen(name) + 1, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_Name with no data */
 	_TCP_Cmd_Update_File,						/* length of the update file, echo _MCS_Cmd_Echo | _TCP_Cmd_Update_File with no data */
@@ -152,7 +171,7 @@ enum
 #define LINK_EXE_DIR			LINK_DIR"exe_cur"
 
 #define VERSION_LIST_FILE			"VersionList.json"
-#define MAX_RESERVED_VERSION_CNT	2
+#define MAX_RESERVED_VERSION_CNT	1
 
 void *ThreadUDP(void *pArg);
 void *ThreadTCPUpdate(void *pArg);
