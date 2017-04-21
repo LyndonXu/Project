@@ -257,8 +257,18 @@ typedef struct _tagStMCSHeader
     uint8_t u8MixArr[4];                 /* 混合参数 */
     uint32_t u32CmdCnt;                  /* 命令包的数量 */
     uint32_t u32CmdTotalSize;            /* 命令总大小 */
-    uint8_t u8CheckSumArr[4];            /* 校验和 */
+    union
+	{
+		uint8_t u8CheckSumArr[4];            /* 校验和 */
+    	struct
+		{
+			uint16_t u16HeaderCRC16;
+			uint16_t u16PayloadCRC16;
+		};
+	};
 }StMCSHeader;
+
+extern const uint8_t c_u8MixArr[4];
 
 typedef struct _tagStMCS
 {

@@ -5,7 +5,7 @@
  * 版本                 : 0.0.1
  * 作者                 : 许龙杰
  * 创建日期             : 2014年5月7日
- * 描述                 : 
+ * 描述                 :
  ****************************************************************************/
 #include <common.h>
 #include "common_define.h"
@@ -81,9 +81,159 @@ void SignalRegister(void)
 //#define GETADDRINFO_TEST
 //#define MINE_TEST
 //#define UART_TEST
-#define CMD_WITH_CB
+//#define CMD_WITH_CB
+#define YNA_CYCLE_GET_MSG_TEST
 
-#if defined CMD_WITH_CB
+#if defined YNA_CYCLE_GET_MSG_TEST
+char c8Buf[1 * 1024 * 1024];
+char c8Buf2[1 * 1024 * 1024];
+int main()
+{
+	StCycleBuf stCtrl;
+	int32_t i;
+
+	CycleMsgInit(&stCtrl, c8Buf, 1 * 1024 * 1024);
+
+	for (i = 0; i < 100; i++)
+	{
+		int32_t j;
+		int32_t s32Type = rand() % 3;
+		uint32_t u32Length = 0;
+		bool boIsRightMsg = false;
+		for (j = 0; j < 1 * 1024 * 1024; j++)
+		{
+			c8Buf2[j] = rand();
+		}
+		if ((i & 0x01) == 0)/* right message */
+		{
+			boIsRightMsg = true;
+		}
+		if (s32Type == 0)	/* YNA */
+		{
+			int32_t s32Tmp = rand();
+			if ((s32Tmp & 0x0F) == 0)
+			{
+				c8Buf2[0] = 0xAA;
+				YNAGetCheckSum((uint8_t *)c8Buf2);
+				u32Length = 8;
+				if (!boIsRightMsg)
+				{
+					c8Buf2[u32Length - 1] = rand();
+				}
+			}
+			else
+			{
+				void *pCmd = YNAMakeASimpleVarialbleCmd(11, c8Buf2, rand() % 1024, &u32Length);
+				if (pCmd != NULL)
+				{
+					memcpy(c8Buf2, pCmd, u32Length);
+					if (!boIsRightMsg)
+					{
+						c8Buf2[u32Length - 1] = rand();
+					}
+					free(pCmd);
+				}
+				else
+				{
+					u32Length = 0;
+				}
+			}
+		}
+		else if (s32Type == 1) /* visca */
+		{
+			c8Buf2[0] = 0x81;
+			if (!boIsRightMsg)
+			{
+				memset(c8Buf2 + 1, 0, PROTOCOL_VISCA_MAX_LENGTH);
+				u32Length = PROTOCOL_VISCA_MAX_LENGTH + 1;
+			}
+			else
+			{
+				uint32_t u32Tmp = rand() % 13;
+				u32Tmp = u32Tmp + 1 + PROTOCOL_VISCA_MIN_LENGTH;
+				u32Length = u32Tmp;
+				memset(c8Buf2 + 1, 0, u32Length - 2);
+				c8Buf2[u32Length - 1] = 0xFF;
+				if (u32Length == 9)
+				{
+					u32Length = 9;
+				}
+			}
+		}
+		else
+		{
+			/* no wrong message */
+			void *pCmd = MCSMakeAnArrayVarialbleCmd(11, c8Buf2, 1, rand() % 1024, &u32Length);
+			if (pCmd != NULL)
+			{
+				memcpy(c8Buf2, pCmd, u32Length);
+				free(pCmd);
+			}
+			else
+			{
+				u32Length = 0;
+			}
+			boIsRightMsg = true;
+		}
+		if (u32Length != 0)
+		{
+			char *pTmp = c8Buf2;
+			void *pCmd = NULL;
+			int32_t s32Tmp = u32Length;
+			PRINT("type: %d, length: %d, flag: %s\n", s32Type, u32Length, boIsRightMsg ? "true" : "false");
+			while (1)
+			{
+				uint32_t u32CmdLength = 0;
+				int32_t s32ProtocolType = 0;
+				int32_t s32Err = 0;
+				while (s32Tmp > 0)
+				{
+					int32_t s32NeedWrite = s32Tmp > 4 ? 4 : s32Tmp;
+					pCmd = CycleGetOneMsg(&stCtrl, (const char *)pTmp, s32NeedWrite,
+							&u32CmdLength, &s32ProtocolType, &s32Err);
+					pTmp += s32NeedWrite;
+					s32Tmp -= s32NeedWrite;
+					if (pCmd != NULL)
+					{
+						PRINT("got message(s32ProtocolType: %d) and the flag is: %s\n", s32ProtocolType, boIsRightMsg ? "true" : "false");
+						free(pCmd);
+					}
+					else if(boIsRightMsg && s32Tmp == 0)
+					{
+						int32_t m;
+						PRINT("*************not get the message: %d***********\n", s32Type);
+						for (m = 0; m < u32Length; m++)
+						{
+							printf("%02hhx ", c8Buf2[m]);
+						}
+						printf("\n");
+
+					}
+				}
+
+				pTmp = NULL;
+				pCmd = CycleGetOneMsg(&stCtrl, (const char *)pTmp, s32Tmp,
+						&u32CmdLength, &s32ProtocolType, &s32Err);
+				if (pCmd != NULL)
+				{
+					PRINT("got message(s32ProtocolType: %d) and the flag is: %s\n", s32ProtocolType, boIsRightMsg ? "true" : "false");
+					free(pCmd);
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+	}
+
+
+
+
+	return 0;
+}
+
+#elif defined CMD_WITH_CB
 #define UNIX_TEST		"/tmp/CMD_WITH_CB.socket"
 #define SEND_FILE		"/home/lyndon/workspace/config"
 #define WRITE_FILE		"test_recv.text"

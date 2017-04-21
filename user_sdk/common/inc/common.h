@@ -1333,6 +1333,10 @@ enum
 	_Protocol_PELCO_P,
 	_Protocol_VISCA,
 
+
+
+	_Protocol_MCS = 0x1000,
+
 	_Protocol_Reserved,
 };
 

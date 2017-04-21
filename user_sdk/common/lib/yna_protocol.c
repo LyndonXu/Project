@@ -69,27 +69,41 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 		uint32_t i;
 		bool boIsBreak = false;
 
+
+#define WRONG_MSG_DEFINE() \
+		pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));\
+		pCycleBuf->u32Read += (i + 1);\
+		pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;\
+		pCycleBuf->u32Flag = 0;\
+		break;
+
+#define MSG_NOT_LONG_ENOUGH_DEFINE() \
+		if (i != 0)\
+		{\
+			pCycleBuf->u32Using = (pCycleBuf->u32Using - i);\
+			pCycleBuf->u32Read += i;\
+			pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;\
+		}\
+		boIsBreak = true;
+
 		for (i = 0; i < pCycleBuf->u32Using; i++)
 		{
 			uint32_t u32ReadIndex = i + pCycleBuf->u32Read;
-			char c8FirstByte;
+			int32_t s32FirstByte;
 			u32ReadIndex %= pCycleBuf->u32TotalLength;
-			c8FirstByte = pCycleBuf->pBuf[u32ReadIndex];
-			if (c8FirstByte == ((char)0xAA))
+			s32FirstByte = pCycleBuf->pBuf[u32ReadIndex];
+			s32FirstByte &= 0xFF;
+			if (s32FirstByte == 0xAA)
 			{
-				#define YNA_NORMAL_CMD		0
-				#define YNA_VARIABLE_CMD	1 /*big than PROTOCOL_YNA_DECODE_LENGTH */
-				uint32_t u32MSB = 0;
-				uint32_t u32LSB = 0;
+				uint32_t u32CmdLen = 0;
 				int32_t s32RemainLength = pCycleBuf->u32Using - i;
 
 				/* check whether it's a variable length command */
 				if (s32RemainLength >= PROTOCOL_YNA_DECODE_LENGTH - 1)
 				{
-					if (pCycleBuf->u32Flag != YNA_NORMAL_CMD)
+					if (pCycleBuf->u32Flag != 0)
 					{
-						u32MSB = ((pCycleBuf->u32Flag >> 8) & 0xFF);
-						u32LSB = ((pCycleBuf->u32Flag >> 0) & 0xFF);
+						u32CmdLen = pCycleBuf->u32Flag;
 					}
 					else
 					{
@@ -98,8 +112,8 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 						if ((pTmp[(u32Start + _YNA_Mix) % pCycleBuf->u32TotalLength] == 0x04)
 							&& (pTmp[(u32Start + _YNA_Cmd) % pCycleBuf->u32TotalLength] == 0x00))
 						{
-							u32MSB = pTmp[(u32Start + _YNA_Data2) % pCycleBuf->u32TotalLength];
-							u32LSB = pTmp[(u32Start + _YNA_Data3) % pCycleBuf->u32TotalLength];
+							uint32_t u32MSB = pTmp[(u32Start + _YNA_Data2) % pCycleBuf->u32TotalLength];
+							uint32_t u32LSB = pTmp[(u32Start + _YNA_Data3) % pCycleBuf->u32TotalLength];
 							if (s32RemainLength >= PROTOCOL_YNA_DECODE_LENGTH)
 							{
 								uint32_t u32Start = i + pCycleBuf->u32Read;
@@ -114,10 +128,8 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 								c8Tmp = pCycleBuf->pBuf[u32End % pCycleBuf->u32TotalLength];
 								if (c8CheckSum != c8Tmp) /* wrong message */
 								{
-									PRINT("get a wrong command: %d\n", u32MSB);
-									pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));
-									pCycleBuf->u32Read += (i + 1);
-									pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
+									PRINT("get a wrong command: %d\n", u32CmdLen);
+									WRONG_MSG_DEFINE();
 									break;
 								}
 
@@ -125,29 +137,25 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 								u32LSB &= 0xFF;
 
 								pCycleBuf->u32Flag = ((u32MSB << 8) + u32LSB);
+								u32CmdLen = pCycleBuf->u32Flag;
 							}
 						}
 					}
 				}
-				u32MSB &= 0xFF;
-				u32LSB &= 0xFF;
-				u32MSB = (u32MSB << 8) + u32LSB;
-				u32MSB += PROTOCOL_YNA_DECODE_LENGTH;
-				PRINT("the data length is: %d\n", u32MSB);
-				if (u32MSB > (pCycleBuf->u32TotalLength / 2))	/* maybe the message is wrong */
+				u32CmdLen &= 0xFFFF;
+				u32CmdLen += PROTOCOL_YNA_DECODE_LENGTH;
+				PRINT("the data length is: %d\n", u32CmdLen);
+				if (u32CmdLen > (pCycleBuf->u32TotalLength / 2))	/* maybe the message is wrong */
 				{
-					pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));
-					pCycleBuf->u32Read += (i + 1);
-					pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-					pCycleBuf->u32Flag = 0;
+					WRONG_MSG_DEFINE();
 				}
-				else if (((int32_t)(u32MSB)) <= s32RemainLength) /* good, I may got a message */
+				else if (((int32_t)(u32CmdLen)) <= s32RemainLength) /* good, I may got a message */
 				{
-					if (u32MSB == PROTOCOL_YNA_DECODE_LENGTH)
+					if (u32CmdLen == PROTOCOL_YNA_DECODE_LENGTH)
 					{
 						char c8CheckSum = 0, *pBufTmp, c8Tmp;
 						uint32_t j, u32Start, u32End;
-						uint32_t u32CmdLength = u32MSB;
+						uint32_t u32CmdLength = u32CmdLen;
 						pBuf = (char *)malloc(u32CmdLength);
 						if (pBuf == NULL)
 						{
@@ -157,7 +165,7 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 						pBufTmp = pBuf;
 						u32Start = i + pCycleBuf->u32Read;
 
-						u32End = u32MSB - 1 + i + pCycleBuf->u32Read;
+						u32End = u32CmdLen - 1 + i + pCycleBuf->u32Read;
 						PRINT("start: %d, end: %d\n", u32Start, u32End);
 						for (j = u32Start; j < u32End; j++)
 						{
@@ -174,7 +182,8 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + u32CmdLength));
 							pCycleBuf->u32Read = i + pCycleBuf->u32Read + u32CmdLength;
 							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-							PRINT("get a command: %d\n", u32MSB);
+							pCycleBuf->u32Flag = 0;
+							PRINT("get a command: %d\n", u32CmdLen);
 							PRINT("u32Using: %d, u32Read: %d, u32Write: %d\n", pCycleBuf->u32Using, pCycleBuf->u32Read, pCycleBuf->u32Write);
 							*pLength = u32CmdLength;
 							if (pProtocolType != NULL)
@@ -186,17 +195,14 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 						{
 							free(pBuf);
 							pBuf = NULL;
-							PRINT("get a wrong command: %d\n", u32MSB);
-							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));
-							pCycleBuf->u32Read += (i + 1);
-							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-							pCycleBuf->u32Flag = 0;
+							PRINT("get a wrong command: %d\n", u32CmdLen);
+							WRONG_MSG_DEFINE();
 						}
 					}
 					else /* variable length */
 					{
 						uint32_t u32Start, u32End;
-						uint32_t u32CmdLength = u32MSB;
+						uint32_t u32CmdLength = u32CmdLen;
 						uint16_t u16CRCModBus;
 						uint16_t u16CRCBuf;
 						pBuf = (char *)malloc(u32CmdLength);
@@ -206,29 +212,29 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 							goto end;
 						}
 						u32Start = (i + pCycleBuf->u32Read) % pCycleBuf->u32TotalLength;
-						u32End = (u32MSB + i + pCycleBuf->u32Read) % pCycleBuf->u32TotalLength;
+						u32End = (u32CmdLen + i + pCycleBuf->u32Read) % pCycleBuf->u32TotalLength;
 						PRINT("start: %d, end: %d\n", u32Start, u32End);
 						if (u32End > u32Start)
 						{
-							memcpy(pBuf, pCycleBuf->pBuf + u32Start, u32MSB);
+							memcpy(pBuf, pCycleBuf->pBuf + u32Start, u32CmdLen);
 						}
 						else
 						{
 							uint32_t u32FirstCopy = pCycleBuf->u32TotalLength - u32Start;
 							memcpy(pBuf, pCycleBuf->pBuf + u32Start, u32FirstCopy);
-							memcpy(pBuf + u32FirstCopy, pCycleBuf->pBuf, u32MSB - u32FirstCopy);
+							memcpy(pBuf + u32FirstCopy, pCycleBuf->pBuf, u32CmdLen - u32FirstCopy);
 						}
 
-						pCycleBuf->u32Flag = YNA_NORMAL_CMD;
+						pCycleBuf->u32Flag = 0;
 
 						/* we need not check the head's check sum,
 						 * just check the CRC16-MODBUS
 						 */
 						u16CRCModBus = CRC16((const uint8_t *)pBuf + PROTOCOL_YNA_DECODE_LENGTH,
-							u32MSB - PROTOCOL_YNA_DECODE_LENGTH - 2);
+							u32CmdLen - PROTOCOL_YNA_DECODE_LENGTH - 2);
 						u16CRCBuf = 0;
 
-						LittleAndBigEndianTransfer((char *)(&u16CRCBuf), pBuf + u32MSB - 2, 2);
+						LittleAndBigEndianTransfer((char *)(&u16CRCBuf), pBuf + u32CmdLen - 2, 2);
 						if (u16CRCBuf == u16CRCModBus) /* good message */
 						{
 							boIsBreak = true;
@@ -236,7 +242,8 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + u32CmdLength));
 							pCycleBuf->u32Read = i + pCycleBuf->u32Read + u32CmdLength;
 							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-							PRINT("get a command: %d\n", u32MSB);
+							pCycleBuf->u32Flag = 0;
+							PRINT("get a command: %d\n", u32CmdLen);
 							PRINT("u32Using: %d, u32Read: %d, u32Write: %d\n", pCycleBuf->u32Using, pCycleBuf->u32Read, pCycleBuf->u32Write);
 							*pLength = u32CmdLength;
 							if (pProtocolType != NULL)
@@ -248,24 +255,19 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 						{
 							free(pBuf);
 							pBuf = NULL;
-							PRINT("get a wrong command: %d\n", u32MSB);
-							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));
-							pCycleBuf->u32Read += (i + 1);
-							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
+							PRINT("get a wrong command: %d\n", u32CmdLen);
+							WRONG_MSG_DEFINE();
 						}
 					}
 				}
 				else	/* message not enough long */
 				{
-					pCycleBuf->u32Using = (pCycleBuf->u32Using - i);
-					pCycleBuf->u32Read += i;
-					pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-					boIsBreak = true;
+					MSG_NOT_LONG_ENOUGH_DEFINE();
 				}
 				break;
 			}
 
-			else if((c8FirstByte & 0xF0) == ((char)0x80))
+			else if ((s32FirstByte & 0xF0) == 0x80)
 			{
 				int32_t s32RemainLength = pCycleBuf->u32Using - i;
 				if (s32RemainLength >= PROTOCOL_VISCA_MIN_LENGTH)
@@ -290,9 +292,7 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 						{
 							pBuf = NULL;
 							PRINT("get a wrong visca command: %d\n", (u32End - u32Start + 1));
-							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));
-							pCycleBuf->u32Read += (i + 1);
-							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
+							WRONG_MSG_DEFINE();
 						}
 						else
 						{
@@ -316,6 +316,7 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + u32CmdLength));
 							pCycleBuf->u32Read = i + pCycleBuf->u32Read + u32CmdLength;
 							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
+							pCycleBuf->u32Flag = 0;
 							PRINT("get a command: %d\n", u32CmdLength);
 							PRINT("u32Using: %d, u32Read: %d, u32Write: %d\n", pCycleBuf->u32Using, pCycleBuf->u32Read, pCycleBuf->u32Write);
 							*pLength = u32CmdLength;
@@ -333,30 +334,108 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 						{
 							pBuf = NULL;
 							PRINT("get a wrong visca command: %d\n", (u32End - u32Start));
-							pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + 1));
-							pCycleBuf->u32Read += (i + 1);
-							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
+							WRONG_MSG_DEFINE();
 						}
-						else
+						else	/*message not long enough */
 						{
-							pCycleBuf->u32Using = (pCycleBuf->u32Using - i);
-							pCycleBuf->u32Read += i;
-							pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-							boIsBreak = true;
+							MSG_NOT_LONG_ENOUGH_DEFINE();
 						}
 					}
 				}
 				else	/* message not enough long */
 				{
-					pCycleBuf->u32Using = (pCycleBuf->u32Using - i);
-					pCycleBuf->u32Read += i;
-					pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
-					boIsBreak = true;
+					/* correct the message header message, because the i is maybe not 0 */
+					MSG_NOT_LONG_ENOUGH_DEFINE();
 				}
 				break;
 			}
 
+			else if (s32FirstByte == 'M')	/* MCS */
+			{
+				uint32_t u32CmdLen = 0;
+				int32_t s32RemainLength = pCycleBuf->u32Using - i;
 
+				/* get variable length */
+				if (s32RemainLength >= sizeof(StMCSHeader))
+				{
+					if (pCycleBuf->u32Flag != 0)
+					{
+						u32CmdLen = pCycleBuf->u32Flag;
+					}
+					else
+					{
+						uint32_t u32Start = i + pCycleBuf->u32Read;
+						char *pTmp = pCycleBuf->pBuf;
+						uint32_t j;
+						pCycleBuf->u32Flag = 0;
+						char c8Header[4];
+						for (j = 0; j < 4; j++)
+						{
+							c8Header[j] = pTmp[(u32Start + j) % pCycleBuf->u32TotalLength];
+						}
+						if (memcmp(c8Header, c_u8MixArr, 4) != 0)
+						{
+							PRINT("get a wrong MCS\n");
+							WRONG_MSG_DEFINE();
+							break;
+						}
+						for (j = 0; j < sizeof(uint32_t); j++)
+						{
+							pCycleBuf->u32Flag <<= 8;
+							uint32_t u32Tmp = pTmp[(u32Start + offsetof(StMCSHeader, u32CmdTotalSize) + j) %
+												pCycleBuf->u32TotalLength];
+							u32Tmp &= 0xFF;
+							pCycleBuf->u32Flag |= u32Tmp;
+						}
+						u32CmdLen = pCycleBuf->u32Flag;
+					}
+				}
+				u32CmdLen += sizeof(StMCSHeader);
+				PRINT("the data length is: %d\n", u32CmdLen);
+				if (u32CmdLen > (pCycleBuf->u32TotalLength / 2))	/* maybe the message is wrong */
+				{
+					WRONG_MSG_DEFINE();
+				}
+				else if (((int32_t)(u32CmdLen)) <= s32RemainLength) /* good, I may got a message */
+				{
+					uint32_t j;
+					uint32_t u32Start = i + pCycleBuf->u32Read;
+					uint32_t u32End = u32Start + u32CmdLen;
+					char *pBufTmp;
+					pBuf = (char *)malloc(u32CmdLen);
+					if (pBuf == NULL)
+					{
+						s32Err = -1; /* big problem */
+						goto end;
+					}
+					pBufTmp = pBuf;
+					boIsBreak = true;
+
+					PRINT("start: %d, end: %d\n", u32Start, u32End);
+					for (j = u32Start; j <= u32End; j++)
+					{
+						*pBufTmp++ = pCycleBuf->pBuf[j % pCycleBuf->u32TotalLength];
+					}
+
+					pCycleBuf->u32Using = (pCycleBuf->u32Using - (i + u32CmdLen));
+					pCycleBuf->u32Read = i + pCycleBuf->u32Read + u32CmdLen;
+					pCycleBuf->u32Read %= pCycleBuf->u32TotalLength;
+					pCycleBuf->u32Flag = 0;
+					PRINT("get a MCS command: %d\n", u32CmdLen);
+					PRINT("u32Using: %d, u32Read: %d, u32Write: %d\n", pCycleBuf->u32Using, pCycleBuf->u32Read, pCycleBuf->u32Write);
+					*pLength = u32CmdLen;
+					if (pProtocolType != NULL)
+					{
+						*pProtocolType = _Protocol_MCS;
+					}
+				}
+				else	/* message not enough long */
+				{
+					MSG_NOT_LONG_ENOUGH_DEFINE();
+				}
+				break;
+
+			}
 		}
 		if ((i == pCycleBuf->u32Using) && (!boIsBreak))
 		{
@@ -371,6 +450,9 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 		{
 			break;
 		}
+#undef WRONG_MSG_DEFINE
+#undef MSG_NOT_LONG_ENOUGH_DEFINE
+
 	} while (((int32_t)pCycleBuf->u32Using) > 0);
 
 	//if (pCycleBuf->u32Write + u32DataLength)
