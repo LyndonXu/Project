@@ -5,7 +5,8 @@ endif
 
 DIRS = user_sdk \
 		uart_daemon \
-		update_daemon
+		update_daemon \
+		cmd_communication
 #		user_sdk \
 #		main_process \
 #		bp_process \
