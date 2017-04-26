@@ -33,7 +33,7 @@ static struct fb_bitfield s_g32 = {8,8,0};
 static struct fb_bitfield s_b32 = {0,8,0};
 
 #define WIDTH                  1280
-#define HEIGHT                 720
+#define HEIGHT                 800
 
 bool g_boIsExit = false;
 HI_VOID SAMPLE_HIFB_HandleSig(HI_S32 signo)
@@ -104,7 +104,7 @@ HI_S32 SAMPLE_HIFB(HI_VOID)
 		SAMPLE_PRT("BindGraphicLayer failed with %d!\n", s32Ret);
 		goto SAMPLE_HIFB_NoneBufMode_0;
 	}
-	stPubAttr.enIntfSync = VO_OUTPUT_720P50;
+	stPubAttr.enIntfSync = VO_OUTPUT_1280x800_60;
 	stPubAttr.enIntfType = VO_INTF_HDMI | VO_INTF_VGA;
 	stPubAttr.u32BgColor = 0x00ff00;
 
