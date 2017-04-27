@@ -31,6 +31,13 @@
 
 extern bool g_boIsExit;
 
+#define CMD_OUTTIME			30	//second
+
+enum
+{
+	_Err_Socket_Full = 1,
+};
+
 
 
 #endif /* CMD_COMMUNICATION_H_ */

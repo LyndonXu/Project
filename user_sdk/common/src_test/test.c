@@ -55,7 +55,7 @@ void SignalRegister(void)
 //#define CLOUD_STATE_TEST
 //#define SEM_TEST
 //#define UPDATE_TEST
-//#define UNIX_SOCKET_TEST
+#define UNIX_SOCKET_TEST
 //#define IPC_MSG_TEST
 //#define STRING_DISTANCE_TEST
 //#define GETOPT_TEST
@@ -82,7 +82,7 @@ void SignalRegister(void)
 //#define MINE_TEST
 //#define UART_TEST
 //#define CMD_WITH_CB
-#define YNA_CYCLE_GET_MSG_TEST
+//#define YNA_CYCLE_GET_MSG_TEST
 
 #if defined YNA_CYCLE_GET_MSG_TEST
 char c8Buf[1 * 1024 * 1024];
@@ -2451,6 +2451,7 @@ int main(int argc, char *argv[])
 			0x5E, 0x64, 0x00, 0xB0, 0x05, 0x00, 0x55, 0xF3,
 			0xC1, 0x00, 0x01, 0x01, 0x08, 0x02, 0x14, 0x00
 		};
+		sleep(2);
 		s32Err = MCSSyncSendData(s32Client, 0, sizeof(u8Buf), u8Buf);
 		if (s32Err != 0)
 		{
@@ -2505,6 +2506,10 @@ int main(int argc, char *argv[])
 			if (pTmp == NULL)
 			{
 				PRINT("recv msg error: 0x%08x\n", s32Err);
+				if ((s32Err & (~0xFF)) == MY_ERR(_Err_SYS))
+				{
+					PRINT("%s\n", strerror(s32Err & 0xFF));
+				}
 			}
 			else
 			{
@@ -2521,6 +2526,7 @@ int main(int argc, char *argv[])
 				printf("\n");
 				MCSFree(pTmp);
 			}
+			close(s32Client);
 		}
 		ServerRemove(s32Server, UNIX_TEST);
 	}
