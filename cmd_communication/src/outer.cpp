@@ -8,6 +8,7 @@
 
 void *ThreadTCPOutCMD(void *pArg)
 {
+	StThreadArg *pThreadArg = (StThreadArg *)pArg;
 	int32_t s32Socket = -1;
 	int32_t s32Err = 0;
 
@@ -29,6 +30,7 @@ void *ThreadTCPOutCMD(void *pArg)
 
 	    if(bind(s32Socket,(struct sockaddr *)&(stAddr), sizeof(struct sockaddr_in)) == -1)
 	    {
+	        PRINT("bind the socket error: %s\n", strerror(errno));
 			close(s32Socket);
 			return NULL;
 	    }
@@ -54,6 +56,7 @@ void *ThreadTCPOutCMD(void *pArg)
 
 		if (select(s32Socket + 1, &stSet, NULL, NULL, &stTimeout) <= 0)
 		{
+			continue;
 		}
 		else if (FD_ISSET(s32Socket, &stSet))
 		{
@@ -62,7 +65,128 @@ void *ThreadTCPOutCMD(void *pArg)
 			{
 				continue;
 			}
+			{
+				struct timeval stTimeout;
+				stTimeout.tv_sec  = 0;
+				stTimeout.tv_usec = 10 * 1000;
+				if(setsockopt(s32Client, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+				{
+					close(s32Socket);
+					continue;
+				}
+
+			}
+			PRINT("insert a socket into the control block: %d\n", s32Client);
+			if (pThreadArg->pCtrl->InsertASocket(s32Client) != 0)
+			{
+				close(s32Socket);
+			}
 		}
+	}
+	return NULL;
+}
+
+
+void *ThreadTCPOutCMDParse(void *pArg)
+{
+	StThreadArg *pThreadArg = (StThreadArg *)pArg;
+	CSockCtrl *pCtrl = pThreadArg->pCtrl;
+	int32_t s32Err = 0;
+	while (!g_boIsExit)
+	{
+		int32_t *pSock;
+		int32_t s32Count = 0;
+		pSock = pCtrl->GetSocket(s32Count);
+		if ((s32Count == 0) || (pSock == NULL))
+		{
+			usleep(300 * 1000);
+		}
+		else
+		{
+			struct pollfd *pFDS = (struct pollfd *)calloc(s32Count, sizeof(struct pollfd));
+			if (pFDS == NULL)
+			{
+				continue;
+			}
+			CMallocAutoRelease CAuto(pFDS);
+
+			//PRINT("poll %d socket(first is: %d)\n", s32Count, pSock[0]);
+			for (int32_t i = 0; i < s32Count; i++)
+			{
+				pFDS[i].fd = pSock[i];
+				pFDS[i].events = POLLIN | POLLRDHUP;
+			}
+			s32Err = poll(pFDS, s32Count, 1000);
+			PRINT("maybe socket wake up: %d\n", s32Err);
+			if (s32Err == 0)	/* timeout */
+			{
+				continue;
+			}
+			else if (s32Err < 0)
+			{
+
+			}
+
+			for (int32_t i = 0; i < s32Count; i++)
+			{
+				char c8Buf[1024];
+				PRINT("socket %d, revents: %08x\n", pSock[i], pFDS[i].revents);
+				if ((pFDS[i].revents & POLLIN) != 0)
+				{
+					PRINT("begin to get some message\n");
+					while (!g_boIsExit)
+					{
+						int32_t s32RecvLen = recv(pSock[i], c8Buf, 1024, 0);
+						PRINT("get message length: %d\n", s32RecvLen);
+						if (s32RecvLen == 0)
+						{
+							break;
+						}
+						else if (s32RecvLen < 0)
+						{
+							if (errno == EAGAIN) /* timeout */
+							{
+
+							}
+							else	/* some error happened on this sock */
+							{
+								PRINT("Error happened on socket(%d): %s\n", pSock[i], strerror(errno));
+								pCtrl->DeleteASocket(pSock[i]);
+
+							}
+							break;
+						}
+						else
+						{
+							void *pBuf = c8Buf;
+							int32_t s32Length = s32RecvLen;
+							while (!g_boIsExit)
+							{
+								StCmdMsg stMsg;
+								s32Err = pCtrl->GetValidMsg(pSock[i], pBuf, s32Length, stMsg);
+								if ((s32Err != 0) || (stMsg.pData == NULL))
+								{
+									break;
+								}
+								PRINT("Get some message: %p, %08x, %d\n\n",
+										stMsg.pData, stMsg.s32Protocol, stMsg.u32Length);
+								pBuf = NULL;
+								s32Length = 0;
+							}
+						}
+					}
+
+				}
+
+				if ((pFDS[i].revents & (POLLRDHUP | POLLERR | POLLHUP)) != 0)
+				{
+					PRINT("Error happened on socket(%d): %s\n", pSock[i], strerror(errno));
+					pCtrl->DeleteASocket(pSock[i]);
+					PRINT("pCtrl->DeleteASocket(pSock[i])\n");
+				}
+			}
+		}
+
 	}
 
 	return NULL;

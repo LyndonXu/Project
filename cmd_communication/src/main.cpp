@@ -20,18 +20,31 @@ void SignalRegister(void)
 	signal(SIGTERM, ProcessStop);
 }
 
-
-
 int main(int argc, const char *argv[])
 {
 	int32_t s32Err = 0;
+	pthread_t s32ThreadCMDParse = -1;
 	SignalRegister();
 
-	while (!g_boIsExit)
+	CSockCtrl csSocketCtrl;
+
+	StThreadArg stArg;
+	stArg.pCtrl = &csSocketCtrl;
+
+	s32Err = MakeThread(ThreadTCPOutCMDParse, &stArg, false, &s32ThreadCMDParse, false);
+	if (s32Err < 0)
 	{
-		sleep(1);
+		goto end;
+		return -1;
 	}
+
+	ThreadTCPOutCMD(&stArg);
 end:
+	if (s32ThreadCMDParse >= 0)
+	{
+		pthread_join(s32ThreadCMDParse, NULL);
+	}
+
 	g_boIsExit = true;
 	return s32Err;
 }

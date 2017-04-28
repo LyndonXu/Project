@@ -412,7 +412,7 @@ void *CycleGetOneMsg(StCycleBuf *pCycleBuf, const char *pData,
 					boIsBreak = true;
 
 					PRINT("start: %d, end: %d\n", u32Start, u32End);
-					for (j = u32Start; j <= u32End; j++)
+					for (j = u32Start; j < u32End; j++)
 					{
 						*pBufTmp++ = pCycleBuf->pBuf[j % pCycleBuf->u32TotalLength];
 					}
