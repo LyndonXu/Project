@@ -397,6 +397,7 @@ enum
 {
 	_MCS_Cmd_UartDaemon = 0x00007000,
 	_MCS_Cmd_UpdateDaemon = 0x00008000,
+	_MCS_Cmd_Cmd_Com = 0x00009000,
 
 
 	_MCS_Cmd_Echo = 0x08000000,

@@ -143,19 +143,21 @@ int32_t CSockCtrl::FlushSocket(void)
 int32_t *CSockCtrl::GetSocket(int32_t &s32Count)
 {
 	s32Count = 0;
+	int32_t *pSock = NULL;
 	pthread_mutex_lock(&m_stMutex);
 
 	for (map<int32_t, CSockInfo*>::iterator iter = m_csSockMap.begin(); iter != m_csSockMap.end(); iter++)
 	{
 		m_s32Socket[s32Count++] = iter->first;
 	}
+	if (s32Count != 0)
+	{
+		pSock = (int32_t *)malloc(s32Count * sizeof(int32_t));
+		memcpy(pSock, m_s32Socket, s32Count * sizeof(int32_t));
+	}
 
 	pthread_mutex_unlock(&m_stMutex);
-	if (s32Count == 0)
-	{
-		return NULL;
-	}
-	return m_s32Socket;
+	return pSock;
 }
 
 

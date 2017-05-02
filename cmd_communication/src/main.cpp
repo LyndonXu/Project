@@ -23,7 +23,8 @@ void SignalRegister(void)
 int main(int argc, const char *argv[])
 {
 	int32_t s32Err = 0;
-	pthread_t s32ThreadCMDParse = -1;
+	pthread_t s32ThreadTCPCMDParse = -1;
+	pthread_t s32ThreadTCPOutCMD = -1;
 	SignalRegister();
 
 	CSockCtrl csSocketCtrl;
@@ -31,18 +32,29 @@ int main(int argc, const char *argv[])
 	StThreadArg stArg;
 	stArg.pCtrl = &csSocketCtrl;
 
-	s32Err = MakeThread(ThreadTCPOutCMDParse, &stArg, false, &s32ThreadCMDParse, false);
+	s32Err = MakeThread(ThreadTCPOutCMDParse, &stArg, false, &s32ThreadTCPCMDParse, false);
+	if (s32Err < 0)
+	{
+		goto end;
+		return -1;
+	}
+	s32Err = MakeThread(ThreadTCPOutCMD, &stArg, false, &s32ThreadTCPOutCMD, false);
 	if (s32Err < 0)
 	{
 		goto end;
 		return -1;
 	}
 
-	ThreadTCPOutCMD(&stArg);
+	ThreadUnixCmd(&stArg);
+
 end:
-	if (s32ThreadCMDParse >= 0)
+	if (s32ThreadTCPCMDParse >= 0)
 	{
-		pthread_join(s32ThreadCMDParse, NULL);
+		pthread_join(s32ThreadTCPCMDParse, NULL);
+	}
+	if (s32ThreadTCPOutCMD >= 0)
+	{
+		pthread_join(s32ThreadTCPOutCMD, NULL);
 	}
 
 	g_boIsExit = true;

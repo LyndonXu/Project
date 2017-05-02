@@ -10,7 +10,6 @@ void *ThreadTCPOutCMD(void *pArg)
 {
 	StThreadArg *pThreadArg = (StThreadArg *)pArg;
 	int32_t s32Socket = -1;
-	int32_t s32Err = 0;
 
 	s32Socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (s32Socket < 0)
@@ -74,6 +73,12 @@ void *ThreadTCPOutCMD(void *pArg)
 					close(s32Socket);
 					continue;
 				}
+				stTimeout.tv_usec = 50 * 1000;
+				if(setsockopt(s32Client, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
+				{
+					close(s32Socket);
+					continue;
+				}
 
 			}
 			PRINT("insert a socket into the control block: %d\n", s32Client);
@@ -99,18 +104,20 @@ void *ThreadTCPOutCMDParse(void *pArg)
 		pSock = pCtrl->GetSocket(s32Count);
 		if ((s32Count == 0) || (pSock == NULL))
 		{
+			PRINT("pCtrl->GetSocket nothing\n");
 			usleep(300 * 1000);
 		}
 		else
 		{
+			CMallocAutoRelease CAutoSock(pSock);
 			struct pollfd *pFDS = (struct pollfd *)calloc(s32Count, sizeof(struct pollfd));
 			if (pFDS == NULL)
 			{
 				continue;
 			}
-			CMallocAutoRelease CAuto(pFDS);
+			CMallocAutoRelease CAutoFDS(pFDS);
 
-			//PRINT("poll %d socket(first is: %d)\n", s32Count, pSock[0]);
+			PRINT("poll %d socket(first is: %d)\n", s32Count, pSock[0]);
 			for (int32_t i = 0; i < s32Count; i++)
 			{
 				pFDS[i].fd = pSock[i];

@@ -30,6 +30,8 @@ int main()
 	struct sockaddr_in stAddr;
 	const char *pAddr = "127.0.0.1";
 
+	SignalRegister();
+
 
 	if ((s32Socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
@@ -125,7 +127,20 @@ int main()
 
 	PRINT("press enter key to exit\n");
 
-	getchar();
+	while (!g_boIsExit)
+	{
+		char c8Buf[1024];
+		int32_t s32Recv = recv(s32Socket, c8Buf, 1024, 0);
+		if (s32Recv < 0)
+		{
+			PRINT("recv error %s\n", strerror(errno));
+			break;
+		}
+		else if (s32Recv > 0)
+		{
+			PRINT("recv some data %d\n", s32Recv);
+		}
+	}
 
 	close(s32Socket);
 

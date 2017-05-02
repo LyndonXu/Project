@@ -460,6 +460,16 @@ int main(int argc, char * const argv[])
 		PRINT("socket connect error: %08x\n", s32Socket);
 	}
 
+	if (u32Cmd == _Unix_Cmd_Uart_Send_Data)
+	{
+		s32Socket = ClientConnect(WORK_DIR "cmd_com_server.socket");
+		if (s32Socket >= 0)
+		{
+			/*  */
+			MCSSyncSend(s32Socket, 2000, _MCS_Cmd_Cmd_Com, u32Length, pData);
+			close(s32Socket);
+		}
+	}
 	free(pData);
 
 	return 0;

@@ -140,8 +140,16 @@ typedef struct _tagStThreadArg
 	CSockCtrl *pCtrl;
 }StThreadArg;
 
+enum
+{
+	_Unix_Cmd_Com_Send_Data = _MCS_Cmd_Cmd_Com,
+};
+#define UNIX_SOCKET_NAME		WORK_DIR "cmd_com_server.socket"
+
+
 void *ThreadTCPOutCMD(void *pArg);
 void *ThreadTCPOutCMDParse(void *pArg);
+void *ThreadUnixCmd(void *pArg);
 
 
 class CMallocAutoRelease
