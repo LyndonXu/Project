@@ -99,6 +99,7 @@ void *ThreadUartRead(void *pArg)
 				PRINT("CycleGetOneMsg get some message: %d, type%d\n", u32GetCmdLen, s32ProtocolType);
 				if (s32ProtocolType == _Protocol_YNA)
 				{
+					bool boNeedToRetrans = true;
 					if (pMsg[_YNA_Mix] == 0x04 && pMsg[_YNA_Cmd] == 0x00)
 					{
 						uint32_t u32TotalLength = 0;
@@ -128,6 +129,9 @@ void *ThreadUartRead(void *pArg)
 								case 0x8020:
 								{
 									StYNAAuthForOther *pAuth = (StYNAAuthForOther *)pData;
+
+									boNeedToRetrans = false;
+
 									if (u16CmdLen != sizeof(StYNAAuthForOther))
 									{
 										break;
@@ -142,6 +146,15 @@ void *ThreadUartRead(void *pArg)
 							}
 							u32ReadLength += (6 + (uint32_t)u16CmdLen);
 							pVariableCmd = pMsg + PROTOCOL_YNA_DECODE_LENGTH + u32ReadLength;
+						}
+						if (boNeedToRetrans)
+						{
+							int32_t s32Sock = ClientConnect(WORK_DIR "cmd_com_server.socket");
+							if (s32Sock >= 0)
+							{
+								MCSSyncSend(s32Sock, 100, _MCS_Cmd_Cmd_Com, u32GetCmdLen, pMsg);
+								close(s32Sock);
+							}
 						}
 					}
 				}

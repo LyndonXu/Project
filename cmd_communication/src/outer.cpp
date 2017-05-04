@@ -178,6 +178,15 @@ void *ThreadTCPOutCMDParse(void *pArg)
 								PRINT("Get some message: %p, %08x, %d\n\n",
 										stMsg.pData, stMsg.s32Protocol, stMsg.u32Length);
 								pBuf = NULL;
+								if (stMsg.s32Protocol == _Protocol_YNA)
+								{
+									int32_t s32Sock = ClientConnect(WORK_DIR "uart_daemon_server.socket");
+									if (s32Sock >= 0)
+									{
+										MCSSyncSend(s32Sock, 100, _MCS_Cmd_UartDaemon, stMsg.u32Length, stMsg.pData);
+										close(s32Sock);
+									}
+								}
 								s32Length = 0;
 							}
 						}
