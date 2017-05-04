@@ -1,0 +1,90 @@
+<gui>
+<background name="images/main_page/front_cover.png"></background>
+<tap radioid="1" image2="images/screen_switch/record_ctrl-----223-75-.png" image1="images/screen_switch/record_ctrl--223-75-.png" x="60" y="300" w="420" h="140">
+    <button image2="images/record_ctrl/record---.png" image1="images/record_ctrl/record.png" x="550" y="400" w="390" h="130" press_cmd="press_cmd" release_cmd="release_cmd">
+    </button>
+    <button image2="images/record_ctrl/pause---.png" image1="images/record_ctrl/pause.png" x="1000" y="400" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/stop---.png" image1="images/record_ctrl/stop.png" x="1450" y="400" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/live---.png" image1="images/record_ctrl/live.png" x="550" y="590" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/interactive_link---.png" image1="images/record_ctrl/interactive_link.png" x="1000" y="590" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/auto---.png" image1="images/record_ctrl/auto.png" x="1450" y="590" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/vga_lock---.png" image1="images/record_ctrl/vga_lock.png" x="550" y="780" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/logo---.png" image1="images/record_ctrl/logo.png" x="1000" y="780" w="390" h="130">
+    </button>
+    <button image2="images/record_ctrl/caption---.png" image1="images/record_ctrl/caption.png" x="1450" y="780" w="390" h="130">
+    </button>
+</tap>
+<tap radioid="1" image2="images/screen_switch/screen_switch-----223-77-.png" image1="images/screen_switch/screen_switch--223-77-.png" x="60" y="490" w="420" h="140">
+    <group x="620" y="300" w="1150" h="440"></group>
+    <label image="images/screen_switch/video_switch.png" x="1045" y="265" w="300" h="70"></label>
+    <radio radioid="2" image2="images/screen_switch/video1------181-66--.png" image1="images/screen_switch/video1-181-66--.png" x="700" y="360" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video2------180-66--.png" image1="images/screen_switch/video2-180-66--.png" x="1050" y="360" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video3------184-65--.png" image1="images/screen_switch/video3-184-65--.png" x="1400" y="360" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video4------181-66--.png" image1="images/screen_switch/video4-181-66--.png" x="700" y="480" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video5-----180-66--.png" image1="images/screen_switch/video5-180-66--.png" x="1050" y="480" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video6-----184-66--.png" image1="images/screen_switch/video6-184-66--.png" x="1400" y="480" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video7------181-63--.png" image1="images/screen_switch/video7-181-63--.png" x="700" y="600" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video8------180-63--.png" image1="images/screen_switch/video8-180-63--.png" x="1050" y="600" w="300" h="100">
+    </radio>
+    <radio radioid="2" image2="images/screen_switch/video9------184-63--.png" image1="images/screen_switch/video9-184-63--.png" x="1400" y="600" w="300" h="100">
+    </radio>
+    <group x="620" y="790" w="1150" h="200"></group>
+    <label image="images/screen_switch/screen_layout.png" x="1045" y="760" w="300" h="70"></label>
+    <radio radioid="3" image2="images/screen_switch/screen_layout1.png" image1="images/screen_switch/screen_layout1--.png" x="670" y="850" w="153" h="116">
+    </radio>
+    <radio radioid="3" image2="images/screen_switch/screen_layout2.png" image1="images/screen_switch/screen_layout2-.png" x="850" y="850" w="153" h="116">
+    </radio>
+    <radio radioid="3" image2="images/screen_switch/screen_layout3.png" image1="images/screen_switch/screen_layout3-.png" x="1030" y="850" w="153" h="116">
+    </radio>
+    <radio radioid="3" image2="images/screen_switch/screen_layout4.png" image1="images/screen_switch/screen_layout4-.png" x="1210" y="850" w="153" h="116">
+    </radio>
+    <radio radioid="3" image2="images/screen_switch/screen_layout5.png" image1="images/screen_switch/screen_layout5-.png" x="1390" y="850" w="153" h="116">
+    </radio>
+    <radio radioid="3" image2="images/screen_switch/screen_layout6.png" image1="images/screen_switch/screen_layout6--.png" x="1570" y="850" w="153" h="116">
+    </radio>
+</tap>
+<tap radioid="1" image2="images/screen_switch/cam_ctrl-----223-74--.png" image1="images/screen_switch/cam_ctrl--223-74--.png" x="60" y="680" w="420" h="140">
+    <radio radioid="2" image2="images/cam_ctrl/PTZ------.png" image1="images/cam_ctrl/PTZ--1.png" x="550" y="400" w="390" h="130">
+    </radio>
+    <radio radioid="2" image2="images/cam_ctrl/PTZ-------2.png" image1="images/cam_ctrl/PTZ--2.png" x="1000" y="400" w="390" h="130">
+    </radio>
+    <radio radioid="2" image2="images/cam_ctrl/PTZ-------3.jpg" image1="images/cam_ctrl/PTZ--3.jpg" x="1450" y="400" w="390" h="130">
+    </radio>
+    <radio radioid="2" image2="images/cam_ctrl/PTZ-------4.png" image1="images/cam_ctrl/PTZ--4.png" x="550" y="590" w="390" h="130">
+    </radio>
+    <radio radioid="2" image2="images/cam_ctrl/PTZ-------5.png" image1="images/cam_ctrl/PTZ--5.png" x="1000" y="590" w="390" h="130">
+    </radio>
+    <radio radioid="2" image2="images/cam_ctrl/PTZ-------6.png" image1="images/cam_ctrl/PTZ--6.png" x="1450" y="590" w="390" h="130">
+    </radio>
+    <group x="620" y="790" w="1150" h="200"></group>
+    <label image="images/cam_ctrl/preset.png" x="1090" y="760" w="210" h="70"></label>
+    <button image2="images/cam_ctrl/A-------1.png" image1="images/cam_ctrl/A--1.png" x="650" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/B-------1.png" image1="images/cam_ctrl/B--1.png" x="790" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/C-------1.png" image1="images/cam_ctrl/C--1.png" x="930" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/D-------1.png" image1="images/cam_ctrl/D--1.png" x="1070" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/E-------1.png" image1="images/cam_ctrl/E--1.png" x="1210" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/F------1.png" image1="images/cam_ctrl/F--1.png" x="1350" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/G-------1.png" image1="images/cam_ctrl/G--1.png" x="1490" y="840" w="120" h="120"></button>
+    <button image2="images/cam_ctrl/H-------1.png" image1="images/cam_ctrl/H--1.png" x="1630" y="840" w="120" h="120"></button>
+</tap>
+<tap radioid="1" image2="images/screen_switch/sys_ctrl-----223-74--.png" image1="images/screen_switch/sys_ctrl--223-74--.png" x="60" y="870" w="420" h="140">
+    <button image2="images/sys_ctrl/one_key--ON---.png" image1="images/sys_ctrl/one_key_ON---.png" x="700" y="600" w="420" h="140" press_cmd="press_cmd" release_cmd="release_cmd">
+    </button>
+    <button image2="images/sys_ctrl/one_key--shutdown---.png" image1="images/sys_ctrl/one_key_shutdown---.png" x="1250" y="600" w="420" h="140" press_cmd="press_cmd" release_cmd="release_cmd">
+    </button>
+</tap>
+    </gui>
+

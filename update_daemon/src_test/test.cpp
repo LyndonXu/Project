@@ -291,7 +291,7 @@ char c8Buf[4096];
 
 int32_t SetMACAddr(int32_t s32Socket)
 {
-	int32_t s32Err;
+	int32_t s32Err = 0;
 	uint32_t u32Size = 0;
 	StSetMacAddr stConfig =
 	{
@@ -372,7 +372,7 @@ int32_t SetMACAddr(int32_t s32Socket)
 
 int32_t SetNetConfig(int32_t s32Socket)
 {
-	int32_t s32Err;
+	int32_t s32Err = 0;
 	uint32_t u32Size = 0;
 	StSetNetConfig stConfig =
 	{
@@ -472,7 +472,7 @@ int32_t SetNetConfig(int32_t s32Socket)
 }
 int32_t GetNetConfig(int32_t s32Socket)
 {
-	int32_t s32Err;
+	int32_t s32Err = 0;
 	uint32_t u32Size = 0;
 	uint8_t *pMCS = (uint8_t *)MCSMakeAnArrayVarialbleCmd(_UDP_Cmd_GetEthInfo, NULL, 0, 0, &u32Size);
 

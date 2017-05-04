@@ -377,10 +377,19 @@ int main(int argc, const char *argv[])
 	int32_t s32Err = 0;
 	pthread_t s32ThreadUartWrite = -1;
 	pthread_t s32ThreadUnixMsg = -1;
-	int32_t s32FDUart = open("/dev/ttyUSB0", O_RDWR);
+	int32_t s32FDUart = -1;
 	int32_t s32MsgId = -1;
 	StThreadArg stArg;
 	CEchoCntl csEchoCntl;
+
+#if defined __arm__
+	printf("himm 0x120F0100 1, himm 0x120F0104 1\n");
+	system("himm 0x120F0100 1");
+	system("himm 0x120F0104 1");
+	s32FDUart = open("/dev/ttyAMA2", O_RDWR | O_NOCTTY | O_NDELAY);
+#else
+	s32FDUart = open("/dev/ttyUSB0", O_RDWR);
+#endif
 	if (s32FDUart < 0)
 	{
 		PRINT("error is: %s\n", strerror(errno));

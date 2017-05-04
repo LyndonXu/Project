@@ -310,7 +310,7 @@ int32_t UDPMCSResolveCallBack(uint32_t u32CmdNum, uint32_t u32CmdCnt, uint32_t u
 					break;
 				}
 #if HAS_CROSS
-				SetNetInterface(INTERFACE_NAME, &(pConfig->stConfig));
+				SetNetInterface(INTERFACE_NAME, pArg->pNetConfigInner);
 #endif
 				SaveConfingFile(&(pConfig->stConfig));
 				/* get current information */

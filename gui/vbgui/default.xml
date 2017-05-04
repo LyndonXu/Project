@@ -1,0 +1,5 @@
+<gui>
+<background name="images/main_page/front_cover.jpg"></background>
+<next config="mainpage.xml" image2="images/main_page/go_in2.png" image1="images/main_page/go_in1.png" x="1300" y="800" w="365" h="115"></next>
+</gui>
+
