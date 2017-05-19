@@ -1426,13 +1426,11 @@ int32_t MCSSyncSendData(int32_t s32Socket,  uint32_t u32TimeOut, uint32_t u32Siz
     stTimeout.tv_usec = (u32TimeOut % 1000) * 1000;
     if(setsockopt(s32Socket, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
     {
-        close(s32Socket);
         return MY_ERR(_Err_SYS + errno);
     }
 
     if(setsockopt(s32Socket, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
     {
-        close(s32Socket);
         return MY_ERR(_Err_SYS + errno);
     }
 
