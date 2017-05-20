@@ -482,7 +482,7 @@ int32_t GetNetConfig(int32_t s32Socket)
 		struct sockaddr_in stAddr = {0};
 		stAddr.sin_family = AF_INET;
 		stAddr.sin_port = htons(UDP_SERVER_PORT);
-		stAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //inet_addr("192.168.247.135"); //htonl(INADDR_BROADCAST);//
+		stAddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);//inet_addr("127.0.0.1"); //inet_addr("192.168.247.135"); //
 		s32Err = sendto(s32Socket, pMCS, u32Size,
 				MSG_NOSIGNAL, (struct sockaddr *)(&stAddr), sizeof(struct sockaddr));
 		if (s32Err < 0)
@@ -578,7 +578,7 @@ int main(int argc, char * const argv[])
 		}
 	}
 
-	SetMACAddr(s32Socket);
+	GetNetConfig(s32Socket);
 
 	close(s32Socket);
 

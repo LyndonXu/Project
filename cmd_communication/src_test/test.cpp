@@ -28,7 +28,7 @@ int main()
 	int32_t s32Socket = -1;
 	int32_t s32Len, s32Err = 0;
 	struct sockaddr_in stAddr;
-	const char *pAddr = "127.0.0.1";
+	const char *pAddr = "192.168.1.108";
 
 	SignalRegister();
 
@@ -81,10 +81,10 @@ int main()
 			c8Buf2[j] = rand();
 		}
 
-		if (s32Type == 0)	/* YNA */
+		if ((s32Type == 0) || 1)	/* YNA */
 		{
 			int32_t s32Tmp = rand();
-			if ((s32Tmp & 0x01) == 0)
+			if (((s32Tmp & 0x01) == 0) || 0)
 			{
 				c8Buf2[0] = 0xAA;
 				YNAGetCheckSum((uint8_t *)c8Buf2);
@@ -92,7 +92,7 @@ int main()
 			}
 			else
 			{
-				void *pCmd = YNAMakeASimpleVarialbleCmd(11, c8Buf2, rand() % 1024, &u32Length);
+				void *pCmd = YNAMakeASimpleVarialbleCmd(rand(), c8Buf2, rand() % 1024, &u32Length);
 				if (pCmd != NULL)
 				{
 					memcpy(c8Buf2, pCmd, u32Length);
@@ -122,6 +122,7 @@ int main()
 		{
 			PRINT("send: p--%d, l--%d\n", s32Type, u32Length);
 			send(s32Socket, c8Buf2, u32Length, MSG_NOSIGNAL);
+			usleep(10 * 1000);
 		}
 	}
 

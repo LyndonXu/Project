@@ -40,7 +40,7 @@ extern bool g_boIsExit;
 //#warning "fedroa platform"
 #endif
 
-#if HAS_CREOSS
+#if HAS_CROSS
 #define INTERFACE_NAME	"eth0"
 #else
 

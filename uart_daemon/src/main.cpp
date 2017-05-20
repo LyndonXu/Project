@@ -34,7 +34,7 @@ void *ThreadUartRead(void *pArg)
 	int32_t s32FDUart = ((StThreadArg *)pArg)->s32FDUart;
 	int32_t s32MsgId = ((StThreadArg *)pArg)->s32MsgId;
 	CEchoCntl *pEchoCntl = ((StThreadArg *)pArg)->pEchoCntl;
-	uint8_t u8ReadBuf[64];
+	uint8_t u8ReadBuf[256];
 	uint64_t u64TimeMsgRcv = TimeGetTime();
 	StCycleBuf stAnalysis = {NULL, 0};
 	if ((s32FDUart < 0) || (pEchoCntl == NULL))
@@ -46,9 +46,7 @@ void *ThreadUartRead(void *pArg)
 
 	while (!g_boIsExit)
 	{
-		int32_t s32ReadCnt;
-		s32ReadCnt = read(s32FDUart, u8ReadBuf, 64);
-		if (s32ReadCnt <= 0)
+		do
 		{
 			uint64_t u64TimeCur = TimeGetTime();
 			//PRINT("current time: %lld, %lld\n", u64TimeCur, u64TimeMsgRcv);
@@ -70,6 +68,25 @@ void *ThreadUartRead(void *pArg)
 				u64TimeMsgRcv += 1000;
 			}
 			pEchoCntl->Flush(0, NULL, 0);
+		} while (0);
+
+		struct timeval stTimeout;
+		fd_set stSet;
+		stTimeout.tv_sec = 0;
+	    stTimeout.tv_usec = 20 * 1000;
+	    FD_ZERO(&stSet);
+	    FD_SET(s32FDUart, &stSet);
+
+	    /* waiting for data comming */
+	    if (select(s32FDUart + 1, &stSet, NULL, NULL, &stTimeout) <= 0)
+	    {
+	       continue;
+	    }
+
+		int32_t s32ReadCnt;
+		s32ReadCnt = read(s32FDUart, u8ReadBuf, 256);
+		if (s32ReadCnt <= 0)
+		{
 			continue;
 		}
 
@@ -123,7 +140,7 @@ void *ThreadUartRead(void *pArg)
 
 							uint8_t *pData = pVariableCmd + 6;
 							u16CmdLen = u16Count * u16Length;
-							PRINT("YNA command: %hx, %d, %d\n", u16CmdLen, u16Count, u16Length);
+							PRINT("YNA command: %d, %d, %d\n", u16Command, u16Count, u16Length);
 							switch (u16Command)
 							{
 								case 0x8020:
@@ -147,14 +164,22 @@ void *ThreadUartRead(void *pArg)
 							u32ReadLength += (6 + (uint32_t)u16CmdLen);
 							pVariableCmd = pMsg + PROTOCOL_YNA_DECODE_LENGTH + u32ReadLength;
 						}
-						if (boNeedToRetrans)
+					}
+					else if (pMsg[_YNA_Mix] == 0x0C &&
+							pMsg[_YNA_Cmd] == 0x80 &&
+							pMsg[_YNA_Data3] == 0x02)
+					{
+						boNeedToRetrans = false;
+					}
+
+					if (boNeedToRetrans)
+					{
+						int32_t s32Sock = ClientConnect(WORK_DIR "cmd_com_server.socket");
+						if (s32Sock >= 0)
 						{
-							int32_t s32Sock = ClientConnect(WORK_DIR "cmd_com_server.socket");
-							if (s32Sock >= 0)
-							{
-								MCSSyncSend(s32Sock, 100, _MCS_Cmd_Cmd_Com, u32GetCmdLen, pMsg);
-								close(s32Sock);
-							}
+							PRINT("send some data to cmd_com_server.socket\n");
+							MCSSyncSend(s32Sock, 100, _MCS_Cmd_Cmd_Com, u32GetCmdLen, pMsg);
+							close(s32Sock);
 						}
 					}
 				}
@@ -204,8 +229,31 @@ void *ThreadUartWrite(void *pArg)
 		PRINT("get a msg, %08x-%08x-%p\n", stMsg.u32WParam, stMsg.u32LParam, stMsg.pMsg);
 		if ((stMsg.u32LParam != 0) && (stMsg.pMsg != NULL))
 		{
-			write(s32FDUart, stMsg.pMsg, stMsg.u32LParam);
-			tcflush(s32FDUart, TCIOFLUSH);
+			char *pWrite  = (char *)stMsg.pMsg;
+			int32_t s32Remain = stMsg.u32LParam;
+			while ((s32Remain > 0) && (!g_boIsExit))
+			{
+				struct timeval stTimeout;
+				fd_set stSet;
+				stTimeout.tv_sec = 0;
+			    stTimeout.tv_usec = 20 * 1000;
+			    FD_ZERO(&stSet);
+			    FD_SET(s32FDUart, &stSet);
+
+			    /* waiting for idle */
+			    if (select(s32FDUart + 1, NULL, &stSet, NULL, &stTimeout) <= 0)
+			    {
+			       continue;
+			    }
+
+				int32_t s32WriteSize = write(s32FDUart,
+						pWrite + stMsg.u32LParam - s32Remain, s32Remain);
+				if (s32WriteSize < 0)
+				{
+					break;
+				}
+				s32Remain -= s32WriteSize;
+			}
 			free (stMsg.pMsg);
 		}
 	}

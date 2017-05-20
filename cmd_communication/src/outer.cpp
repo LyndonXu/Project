@@ -70,13 +70,13 @@ void *ThreadTCPOutCMD(void *pArg)
 				stTimeout.tv_usec = 10 * 1000;
 				if(setsockopt(s32Client, SOL_SOCKET, SO_RCVTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
 				{
-					close(s32Socket);
+					close(s32Client);
 					continue;
 				}
 				stTimeout.tv_usec = 50 * 1000;
 				if(setsockopt(s32Client, SOL_SOCKET, SO_SNDTIMEO, &stTimeout, sizeof(struct timeval)) < 0)
 				{
-					close(s32Socket);
+					close(s32Client);
 					continue;
 				}
 
@@ -84,10 +84,12 @@ void *ThreadTCPOutCMD(void *pArg)
 			PRINT("insert a socket into the control block: %d\n", s32Client);
 			if (pThreadArg->pCtrl->InsertASocket(s32Client) != 0)
 			{
-				close(s32Socket);
+				close(s32Client);
 			}
 		}
 	}
+	PRINT("close the server for %s\n", __FUNCTION__);
+	close(s32Socket);
 	return NULL;
 }
 
